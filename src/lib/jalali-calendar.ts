@@ -1,11 +1,27 @@
 import * as jalaali from 'jalaali-js';
 
-/** Jalali calendar date parts (1-based month and day). */
+/** Jalali calendar date parts (1-based month and day). Optional time for datetime values. */
 export interface JalaliDateParts {
   jy: number;
   jm: number;
   jd: number;
+  /** 0–23 when present. */
+  hour?: number;
+  /** 0–59 when present. */
+  minute?: number;
+  /** 0–59 when present. */
+  second?: number;
 }
+
+/** Clock time in 24-hour form. */
+export interface TimeParts {
+  hour: number;
+  minute: number;
+  second: number;
+}
+
+export type HourFormat = '12' | '24';
+export type Meridiem = 'am' | 'pm';
 
 export const JALALI_MONTH_NAMES = [
   'فروردین',
@@ -308,11 +324,169 @@ export function isJalaliDateParts(value: unknown): value is JalaliDateParts {
 
 export function toGregorianDate(parts: JalaliDateParts): Date {
   const { gy, gm, gd } = jalaali.toGregorian(parts.jy, parts.jm, parts.jd);
-  return new Date(gy, gm - 1, gd);
+  return new Date(
+    gy,
+    gm - 1,
+    gd,
+    parts.hour ?? 0,
+    parts.minute ?? 0,
+    parts.second ?? 0,
+    0,
+  );
 }
 
 export function toJalaliParts(date: Date): JalaliDateParts {
   return jalaali.toJalaali(date.getFullYear(), date.getMonth() + 1, date.getDate());
+}
+
+/** Jalali parts including hour / minute / second from the Date. */
+export function toJalaliDateTimeParts(date: Date): JalaliDateParts {
+  return {
+    ...toJalaliParts(date),
+    hour: date.getHours(),
+    minute: date.getMinutes(),
+    second: date.getSeconds(),
+  };
+}
+
+/** Apply clock time onto a date (mutates a copy). */
+export function applyTimeToDate(
+  date: Date,
+  hour: number,
+  minute: number,
+  second = 0,
+): Date {
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  next.setHours(hour, minute, second, 0);
+  return next;
+}
+
+export function timeFromDate(date: Date): TimeParts {
+  return {
+    hour: date.getHours(),
+    minute: date.getMinutes(),
+    second: date.getSeconds(),
+  };
+}
+
+export function wrapUnit(value: number, min: number, max: number): number {
+  const span = max - min + 1;
+  let next = value;
+  while (next > max) {
+    next -= span;
+  }
+  while (next < min) {
+    next += span;
+  }
+  return next;
+}
+
+/** Convert 24h hour to 12h display (1–12) + meridiem. */
+export function to12Hour(hour24: number): { hour: number; period: Meridiem } {
+  const period: Meridiem = hour24 >= 12 ? 'pm' : 'am';
+  const mod = hour24 % 12;
+  return { hour: mod === 0 ? 12 : mod, period };
+}
+
+/** Convert 12h display hour + meridiem to 0–23. */
+export function to24Hour(hour12: number, period: Meridiem): number {
+  const h = wrapUnit(hour12, 1, 12);
+  if (period === 'am') {
+    return h === 12 ? 0 : h;
+  }
+  return h === 12 ? 12 : h + 12;
+}
+
+export function formatTimeDisplay(
+  hour: number,
+  minute: number,
+  second: number | undefined,
+  opts: {
+    hourFormat?: HourFormat;
+    showSeconds?: boolean;
+    digits?: 'persian' | 'latin';
+    am?: string;
+    pm?: string;
+  } = {},
+): string {
+  const hourFormat = opts.hourFormat ?? '24';
+  const digits = opts.digits ?? 'latin';
+  const showSeconds = opts.showSeconds ?? false;
+  let core: string;
+
+  if (hourFormat === '12') {
+    const { hour: h12, period } = to12Hour(hour);
+    const label = period === 'am' ? (opts.am ?? 'AM') : (opts.pm ?? 'PM');
+    core = showSeconds
+      ? `${pad2(h12)}:${pad2(minute)}:${pad2(second ?? 0)} ${label}`
+      : `${pad2(h12)}:${pad2(minute)} ${label}`;
+  } else {
+    core = showSeconds
+      ? `${pad2(hour)}:${pad2(minute)}:${pad2(second ?? 0)}`
+      : `${pad2(hour)}:${pad2(minute)}`;
+  }
+
+  return digits === 'persian' ? toPersianDigits(core) : core;
+}
+
+/**
+ * Parse `HH:mm`, `HH:mm:ss`, optional `AM`/`PM` (Latin or Persian ق.ظ / ب.ظ).
+ * Returns 24-hour `TimeParts`, or null.
+ */
+export function parseTimeFromText(raw: string): TimeParts | null {
+  const text = toLatinDigits(raw)
+    .trim()
+    .replace(/\u200c/g, '')
+    .replace(/\s+/g, ' ');
+  if (!text) {
+    return null;
+  }
+
+  const m = text.match(
+    /^(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM|am|pm|ق\.?\s*ظ\.?|ب\.?\s*ظ\.?))?$/i,
+  );
+  if (!m) {
+    return null;
+  }
+
+  let hour = Number(m[1]);
+  const minute = Number(m[2]);
+  const second = m[3] != null ? Number(m[3]) : 0;
+  if (minute > 59 || second > 59 || Number.isNaN(hour) || Number.isNaN(minute) || Number.isNaN(second)) {
+    return null;
+  }
+
+  const periodRaw = m[4]?.toLowerCase().replace(/\s+/g, '').replace(/\./g, '') ?? '';
+  const isAm = periodRaw === 'am' || periodRaw === 'قظ';
+  const isPm = periodRaw === 'pm' || periodRaw === 'بظ';
+
+  if (isAm || isPm) {
+    if (hour < 1 || hour > 12) {
+      return null;
+    }
+    hour = to24Hour(hour, isAm ? 'am' : 'pm');
+  } else if (hour > 23) {
+    return null;
+  }
+
+  return { hour, minute, second };
+}
+
+/** Split trailing time from a datetime string. */
+export function splitDateTimeText(raw: string): { datePart: string; timePart: string | null } {
+  const text = toLatinDigits(raw).trim().replace(/\s+/g, ' ');
+  if (!text) {
+    return { datePart: '', timePart: null };
+  }
+
+  const m = text.match(
+    /^(.*?)(?:\s+(\d{1,2}:\d{2}(?::\d{2})?(?:\s*(?:AM|PM|am|pm|ق\.?\s*ظ\.?|ب\.?\s*ظ\.?))?))$/i,
+  );
+  if (!m || !m[1]?.trim()) {
+    return { datePart: text, timePart: null };
+  }
+
+  return { datePart: m[1].trim(), timePart: m[2].trim() };
 }
 
 export function jalaliMonthLength(jy: number, jm: number): number {

@@ -1,6 +1,6 @@
 {
   "name": "datepicker-ng",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Angular Jalali (Persian) datepicker styled with Tailwind CSS — RTL & LTR",
   "license": "MIT",
   "keywords": [
