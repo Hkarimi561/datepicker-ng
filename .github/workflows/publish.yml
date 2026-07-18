@@ -14,6 +14,9 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Uncomment and match the name if you use a GitHub Environment
+    # (and set the same name in npm Trusted Publisher settings):
+    # environment: npm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,8 +60,8 @@ jobs:
         if: steps.check.outputs.exists == 'false'
         run: npm run build
 
+      # Auth via npm Trusted Publishing (OIDC) — no NPM_TOKEN needed.
+      # Configure once: https://www.npmjs.com/package/datepicker-ng → Settings → Trusted Publisher
       - name: Publish package
         if: steps.check.outputs.exists == 'false'
         run: npm publish ./dist/datepicker-ng --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

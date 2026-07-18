@@ -220,7 +220,26 @@ Live demo: [Hkarimi561.github.io/datepicker-ng](https://Hkarimi561.github.io/dat
 
 In the repo: **Settings → Pages → Source: GitHub Actions**.
 
-Add a repository secret named `NPM_TOKEN` (npm automation token) before publishing.
+### Publish setup (Trusted Publishing — no token)
+
+Classic npm token types are gone. CI should use **Trusted Publishing** (OIDC), not a long-lived token.
+
+1. Open https://www.npmjs.com/package/datepicker-ng → **Settings** → **Trusted Publisher**
+2. Choose **GitHub Actions** and set:
+   - Organization or user: `Hkarimi561`
+   - Repository: `datepicker-ng`
+   - Workflow filename: `publish.yml` (filename only)
+   - Environment name: leave **empty** (unless you enable `environment:` in the workflow)
+   - Allowed actions: enable **npm publish**
+3. Save, then bump version and push (or re-run the workflow)
+
+No `NPM_TOKEN` is required for publish when Trusted Publishing is configured.
+
+#### If you still use a granular token
+
+- When creating the token, enable **Bypass 2FA** (unchecked by default) or CI fails with `EOTP`.
+- Put the secret under **Settings → Secrets and variables → Actions → Repository secrets** as `NPM_TOKEN`.
+- Secrets under **Environments** are **not** visible unless the job has `environment: <that-name>`. Your publish job does not use an environment by default, so an Environment secret alone will not work.
 
 To release: bump `"version"` in `package.json`, commit, and push to `main`. CI skips publish if that version already exists on npm.
 
