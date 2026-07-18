@@ -214,13 +214,15 @@ npm run build:showcase
 
 - **CI** (`.github/workflows/ci.yml`) — on push/PR to `main`: install, test, build library, build showcase.
 - **Pages** (`.github/workflows/pages.yml`) — on push to `main`: build showcase and deploy to GitHub Pages.
-- **Publish** (`.github/workflows/publish.yml`) — on GitHub Release (or manual dispatch): test, build, `npm publish` with provenance.
+- **Publish** (`.github/workflows/publish.yml`) — on push to `main` when `package.json` changes: publishes to npm only if the version is new.
 
 Live demo: [Hkarimi561.github.io/datepicker-ng](https://Hkarimi561.github.io/datepicker-ng/)
 
 In the repo: **Settings → Pages → Source: GitHub Actions**.
 
 Add a repository secret named `NPM_TOKEN` (npm automation token) before publishing.
+
+To release: bump `"version"` in `package.json`, commit, and push to `main`. CI skips publish if that version already exists on npm.
 
 Publish from the built package locally:
 
