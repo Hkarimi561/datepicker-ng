@@ -1,6 +1,7 @@
 import {
   addJalaliMonths,
   applySlashDateMask,
+  buildGregorianMonthGrid,
   buildJalaliMonthGrid,
   buildJalaliYearWindow,
   compareJalaliDay,
@@ -108,5 +109,14 @@ describe('jalali-calendar', () => {
     expect(isDateWithinBounds(day, new Date(2025, 5, 1), new Date(2025, 5, 30))).toBe(true);
     expect(isDateWithinBounds(day, new Date(2025, 5, 11), null)).toBe(false);
     expect(buildJalaliYearWindow(1404).length).toBe(12);
+  });
+
+  it('builds a Gregorian month grid starting on Sunday', () => {
+    const weeks = buildGregorianMonthGrid(2022, 2, new Date(2022, 1, 14));
+    expect(weeks).toHaveLength(6);
+    expect(weeks[0]).toHaveLength(7);
+    // 1 Feb 2022 was Tuesday → index 2
+    expect(weeks[0][2].label).toBe('1');
+    expect(weeks[0][2].otherMonth).toBe(false);
   });
 });

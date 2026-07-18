@@ -1,7 +1,7 @@
 {
   "name": "datepicker-ng",
   "version": "0.1.0",
-  "description": "Angular Jalali (Persian) datepicker built on PrimeNG",
+  "description": "Angular Jalali (Persian) datepicker styled with Tailwind CSS — RTL & LTR",
   "license": "MIT",
   "keywords": [
     "angular",
@@ -9,7 +9,9 @@
     "jalali",
     "persian",
     "shamsi",
-    "primeng",
+    "tailwind",
+    "rtl",
+    "ltr",
     "datepicker-ng"
   ],
   "author": "Hamidreza Karimi",
@@ -36,8 +38,6 @@
     "@angular/core": "^22.0.0",
     "@angular/forms": "^22.0.0",
     "@lucide/angular": "^1.23.0",
-    "@primeuix/styles": ">=3.0.0-rc.1",
-    "primeng": ">=22.0.0-rc.1",
     "rxjs": "^7.8.0"
   },
   "dependencies": {
@@ -52,16 +52,15 @@
     "@angular/compiler-cli": "^22.0.0",
     "@angular/core": "^22.0.0",
     "@angular/forms": "^22.0.0",
-    "@angular/animations": "^22.0.0",
     "@angular/platform-browser": "^22.0.0",
     "@lucide/angular": "^1.23.0",
-    "@primeuix/styles": "3.0.0-rc.1",
-    "@primeuix/themes": "3.0.0-rc.1",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/jalaali-js": "^1.2.0",
     "jsdom": "^28.0.0",
     "ng-packagr": "^22.0.0",
-    "primeng": "22.0.0-rc.1",
+    "postcss": "^8.5.19",
     "rxjs": "~7.8.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vitest": "^4.0.8"
   }

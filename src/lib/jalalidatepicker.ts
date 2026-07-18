@@ -14,15 +14,20 @@ import {
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { LucideCalendar, LucideChevronLeft, LucideChevronRight, LucideX } from '@lucide/angular';
-import { PARENT_INSTANCE, BaseComponent } from 'primeng/basecomponent';
-import { Button } from 'primeng/button';
-import { InputText } from 'primeng/inputtext';
 import {
+  addGregorianMonths,
+  addGregorianYears,
   addJalaliMonths,
   addJalaliYears,
   applySlashDateMask,
+  buildGregorianMonthGrid,
+  buildGregorianYearWindow,
   buildJalaliMonthGrid,
   buildJalaliYearWindow,
+  CalendarType,
+  formatGregorianDisplay,
+  formatGregorianMonthYear,
+  formatGregorianRangeDisplay,
   formatGregorianSlash,
   formatJalaliDisplay,
   formatJalaliMonthYear,
@@ -35,16 +40,22 @@ import {
   isSameJalaliDay,
   JalaliDateParts,
   JalaliDayCell,
-  JALALI_MONTH_NAMES,
-  JALALI_WEEKDAY_SHORT,
   normalizeJalaliRange,
   parseGregorianDateString,
   parseJalaliDateString,
   toGregorianDate,
+  toGregorianParts,
   toJalaliParts,
   toPersianDigits,
 } from './jalali-calendar';
-import { JalaliDatePickerStyle } from './jalalidatepicker-style';
+import {
+  DatepickerLocale,
+  DatepickerLocaleInput,
+  resolveDatepickerLocale,
+  rotateWeekdays,
+  WeekStart,
+} from './datepicker-locale';
+import { DatepickerDir, dpClasses } from './jalalidatepicker-style';
 
 /**
  * Form model value for `datepicker-ng`.
@@ -76,6 +87,9 @@ export type JalaliDatePickerDisplayFormat =
 export type JalaliDatePickerParseValue = (raw: unknown) => Date | Date[] | null;
 export type JalaliDatePickerFormatValue = (date: Date | Date[]) => unknown;
 
+export type { CalendarType };
+export type { DatepickerLocale, DatepickerLocaleInput, WeekStart };
+
 type CalendarPanelView = 'date' | 'month' | 'year';
 
 const JALALI_DATEPICKER_VALUE_ACCESSOR = {
@@ -85,72 +99,70 @@ const JALALI_DATEPICKER_VALUE_ACCESSOR = {
 };
 
 /**
- * Persian (Jalali) datepicker styled with PrimeNG datepicker design tokens.
+ * Persian (Jalali) datepicker styled with Tailwind CSS.
+ * Supports RTL and LTR via the `dir` input (logical properties + mirrored chevrons/keys).
  *
  * @group Components
  */
 @Component({
   selector: 'datepicker-ng',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Button, InputText, LucideX, LucideCalendar, LucideChevronLeft, LucideChevronRight],
-  providers: [
-    JalaliDatePickerStyle,
-    JALALI_DATEPICKER_VALUE_ACCESSOR,
-    { provide: PARENT_INSTANCE, useExisting: JalaliDatePicker },
-  ],
+  imports: [LucideX, LucideCalendar, LucideChevronLeft, LucideChevronRight],
+  providers: [JALALI_DATEPICKER_VALUE_ACCESSOR],
   host: {
     '[class]': 'rootClass()',
+    '[attr.dir]': 'dir()',
     '[attr.data-p-disabled]': 'disabled() || null',
-    style: 'position: relative; display: inline-flex; max-width: 100%;',
     '(document:click)': 'onDocumentClick($event)',
     '(document:keydown.escape)': 'onEscape()',
   },
   template: `
     @if (!inline()) {
-      <input
-        #inputEl
-        pInputText
-        type="text"
-        role="combobox"
-        autocomplete="off"
-        [id]="inputId()"
-        [attr.aria-label]="ariaLabel()"
-        [attr.aria-expanded]="overlayVisible()"
-        [attr.aria-haspopup]="true"
-        [attr.aria-controls]="panelId"
-        [attr.aria-invalid]="inputInvalid() || null"
-        [class]="inputClass()"
-        [placeholder]="placeholder()"
-        [disabled]="disabled()"
-        [readonly]="!editable()"
-        [value]="inputText()"
-        (click)="onInputClick($event)"
-        (focus)="onInputFocus()"
-        (input)="onInput($event)"
-        (blur)="onInputBlur()"
-        (keydown)="onInputKeydown($event)"
-      />
-      @if (showClear() && $filled() && !$disabled()) {
+      <span [class]="dp.inputWrap">
+        <input
+          #inputEl
+          type="text"
+          role="combobox"
+          autocomplete="off"
+          [id]="inputId()"
+          [attr.aria-label]="ariaLabel()"
+          [attr.aria-expanded]="overlayVisible()"
+          [attr.aria-haspopup]="true"
+          [attr.aria-controls]="panelId"
+          [attr.aria-invalid]="inputInvalid() || null"
+          [class]="inputClass()"
+          [placeholder]="resolvedPlaceholder()"
+          [disabled]="disabled()"
+          [readonly]="!editable()"
+          [value]="inputText()"
+          (click)="onInputClick($event)"
+          (focus)="onInputFocus()"
+          (input)="onInput($event)"
+          (blur)="onInputBlur()"
+          (keydown)="onInputKeydown($event)"
+        />
+        @if (showClear() && $filled() && !$disabled()) {
+          <span
+            [class]="dp.clearIcon"
+            role="button"
+            tabindex="-1"
+            [attr.aria-label]="resolvedClearLabel()"
+            (mousedown)="$event.preventDefault()"
+            (click)="clear($event)"
+          >
+            <svg lucideX [size]="14" aria-hidden="true"></svg>
+          </span>
+        }
         <span
-          class="p-datepicker-clear-icon"
+          [class]="dp.inputIcon"
           role="button"
           tabindex="-1"
-          [attr.aria-label]="clearLabel()"
+          [attr.aria-label]="resolvedOpenLabel()"
           (mousedown)="$event.preventDefault()"
-          (click)="clear($event)"
+          (click)="onIconClick($event)"
         >
-          <svg lucideX [size]="14" aria-hidden="true"></svg>
+          <svg lucideCalendar [size]="14" aria-hidden="true"></svg>
         </span>
-      }
-      <span
-        class="p-datepicker-input-icon-container"
-        role="button"
-        tabindex="-1"
-        [attr.aria-label]="iconAriaLabel()"
-        (mousedown)="$event.preventDefault()"
-        (click)="onIconClick($event)"
-      >
-        <svg lucideCalendar [class]="cx('inputIcon')" [size]="14" aria-hidden="true"></svg>
       </span>
     }
 
@@ -160,38 +172,38 @@ const JALALI_DATEPICKER_VALUE_ACCESSOR = {
         [id]="panelId"
         role="dialog"
         [attr.aria-modal]="!inline()"
-        [attr.aria-label]="ariaLabel() || (isRange() ? 'انتخاب بازه تاریخ' : 'انتخاب تاریخ')"
+        [attr.aria-label]="ariaLabel() || (isRange() ? t().pickRange : t().pickDate)"
         [class]="panelClass()"
-        [style.position]="inline() ? null : 'absolute'"
-        [style.inset-inline-start]="inline() ? null : '0'"
-        [style.top]="inline() ? null : 'calc(100% + 0.25rem)'"
-        [style.z-index]="inline() ? null : '1000'"
       >
         @if (showSelectionBanner() && bannerContent(); as banner) {
-          <div [class]="cx('selection')" aria-live="polite">
-            <span class="p-jalali-datepicker-selection-year">{{ banner.year }}</span>
-            <span class="p-jalali-datepicker-selection-date">{{ banner.date }}</span>
+          <div [class]="dp.selection" aria-live="polite">
+            <span [class]="dp.selectionYear">{{ banner.year }}</span>
+            <span [class]="dp.selectionDate">{{ banner.date }}</span>
           </div>
         }
 
-        <div [class]="cx('calendarContainer')">
-          <div [class]="cx('calendar')">
-            <div [class]="cx('header')">
+        <div [class]="dp.calendarContainer">
+          <div [class]="dp.calendar">
+            <div [class]="dp.header">
               <button
                 type="button"
-                class="p-datepicker-prev-button p-button p-button-icon-only p-button-text p-button-secondary p-button-rounded"
+                [class]="dp.navButton"
                 [attr.aria-label]="prevLabel()"
                 [disabled]="disabled()"
                 (click)="onPrev()"
               >
-                <svg lucideChevronRight [size]="14" aria-hidden="true"></svg>
+                @if (isRtl()) {
+                  <svg lucideChevronRight [size]="14" aria-hidden="true"></svg>
+                } @else {
+                  <svg lucideChevronLeft [size]="14" aria-hidden="true"></svg>
+                }
               </button>
 
-              <div [class]="cx('title')">
+              <div [class]="dp.title">
                 @if (panelView() === 'date') {
                   <button
                     type="button"
-                    [class]="cx('selectMonth')"
+                    [class]="dp.selectMonth"
                     [disabled]="disabled()"
                     (click)="openMonthView()"
                   >
@@ -200,39 +212,39 @@ const JALALI_DATEPICKER_VALUE_ACCESSOR = {
                 } @else if (panelView() === 'month') {
                   <button
                     type="button"
-                    class="p-datepicker-select-year"
+                    [class]="dp.selectYear"
                     [disabled]="disabled()"
                     (click)="openYearView()"
                   >
-                    {{ toPersianDigits(viewParts().jy) }}
+                    {{ yearTitle() }}
                   </button>
                 } @else {
-                  <span class="p-datepicker-select-year">{{ decadeLabel() }}</span>
+                  <span [class]="dp.selectYear">{{ decadeLabel() }}</span>
                 }
               </div>
 
               <button
                 type="button"
-                class="p-datepicker-next-button p-button p-button-icon-only p-button-text p-button-secondary p-button-rounded"
+                [class]="dp.navButton"
                 [attr.aria-label]="nextLabel()"
                 [disabled]="disabled()"
                 (click)="onNext()"
               >
-                <svg lucideChevronLeft [size]="14" aria-hidden="true"></svg>
+                @if (isRtl()) {
+                  <svg lucideChevronLeft [size]="14" aria-hidden="true"></svg>
+                } @else {
+                  <svg lucideChevronRight [size]="14" aria-hidden="true"></svg>
+                }
               </button>
             </div>
 
             @if (panelView() === 'date') {
-              <table [class]="cx('dayView')" role="grid" [attr.aria-label]="monthYearLabel()">
+              <table [class]="dp.dayView" role="grid" [attr.aria-label]="monthYearLabel()">
                 <thead>
                   <tr>
-                    @for (day of weekdays; track day; let i = $index) {
-                      <th [class]="cx('weekDayCell')">
-                        <span
-                          [class]="cx('weekDay')"
-                          [class.p-jalali-friday]="i === 6"
-                          >{{ day }}</span
-                        >
+                    @for (day of weekdays(); track day; let i = $index) {
+                      <th [class]="dp.weekDayCell">
+                        <span [class]="dp.weekDay(isWeekendColumn(i))">{{ day }}</span>
                       </th>
                     }
                   </tr>
@@ -248,7 +260,7 @@ const JALALI_DATEPICKER_VALUE_ACCESSOR = {
                             [attr.aria-selected]="isDaySelected(cell.parts)"
                             [attr.aria-disabled]="isDayDisabled(cell.parts) || null"
                             [attr.aria-current]="cell.today ? 'date' : null"
-                            [attr.aria-label]="formatJalaliDisplay(cell.parts, 'long')"
+                            [attr.aria-label]="dayAriaLabel(cell)"
                             [class]="dayClass(cell)"
                             (click)="selectDay(cell)"
                             (keydown)="onDayKeydown($event, cell)"
@@ -262,14 +274,12 @@ const JALALI_DATEPICKER_VALUE_ACCESSOR = {
                 </tbody>
               </table>
             } @else if (panelView() === 'month') {
-              <div class="p-datepicker-month-view" role="grid">
-                @for (month of monthNames; track month; let i = $index) {
+              <div [class]="dp.monthView" role="grid">
+                @for (month of monthNames(); track month; let i = $index) {
                   <span
                     role="gridcell"
                     tabindex="0"
-                    class="p-datepicker-month"
-                    [class.p-datepicker-month-selected]="viewParts().jm === i + 1"
-                    [class.p-disabled]="isMonthDisabled(i + 1)"
+                    [class]="monthClass(i + 1)"
                     (click)="selectMonth(i + 1)"
                     (keydown)="onMonthKeydown($event, i + 1)"
                   >
@@ -278,18 +288,16 @@ const JALALI_DATEPICKER_VALUE_ACCESSOR = {
                 }
               </div>
             } @else {
-              <div class="p-datepicker-year-view" role="grid">
+              <div [class]="dp.yearView" role="grid">
                 @for (year of yearWindow(); track year) {
                   <span
                     role="gridcell"
                     tabindex="0"
-                    class="p-datepicker-year"
-                    [class.p-datepicker-year-selected]="viewParts().jy === year"
-                    [class.p-disabled]="isYearDisabled(year)"
+                    [class]="yearClass(year)"
                     (click)="selectYear(year)"
                     (keydown)="onYearKeydown($event, year)"
                   >
-                    {{ toPersianDigits(year) }}
+                    {{ formatYearLabel(year) }}
                   </span>
                 }
               </div>
@@ -297,56 +305,75 @@ const JALALI_DATEPICKER_VALUE_ACCESSOR = {
           </div>
         </div>
 
-        <div [class]="cx('buttonbar')">
+        <div [class]="dp.buttonbar">
           @if (!autoCommit()) {
-            <p-button
+            <button
               type="button"
-              [label]="selectLabel()"
+              [class]="dp.primaryButton"
               [disabled]="disabled() || !canConfirm()"
-              (onClick)="confirm()"
-            />
+              (click)="confirm()"
+            >
+              {{ resolvedSelectLabel() }}
+            </button>
           }
           <button
             type="button"
-            class="p-jalali-datepicker-link"
+            [class]="dp.linkButton"
             [disabled]="disabled()"
             (click)="cancel()"
           >
-            {{ cancelLabel() }}
+            {{ resolvedCancelLabel() }}
           </button>
           @if (showClear()) {
             <button
               type="button"
-              class="p-jalali-datepicker-link"
+              [class]="dp.linkButton"
               [disabled]="disabled() || !$filled()"
               (click)="clear()"
             >
-              {{ clearLabel() }}
+              {{ resolvedClearLabel() }}
             </button>
           }
-          <span class="p-jalali-datepicker-buttonbar-spacer" aria-hidden="true"></span>
+          <span [class]="dp.buttonbarSpacer" aria-hidden="true"></span>
           <button
             type="button"
-            class="p-jalali-datepicker-link"
+            [class]="dp.linkButton"
             [disabled]="disabled() || isDayDisabled(todayParts())"
             (click)="goToday()"
           >
-            {{ todayLabel() }}
+            {{ resolvedTodayLabel() }}
           </button>
         </div>
       </div>
     }
   `,
 })
-export class JalaliDatePicker extends BaseComponent implements ControlValueAccessor {
-  componentName = 'JalaliDatePicker';
-  _componentStyle = inject(JalaliDatePickerStyle);
+export class JalaliDatePicker implements ControlValueAccessor {
+  private readonly hostEl = inject(ElementRef<HTMLElement>);
 
-  readonly placeholder = input('مقدار پیش‌فرض');
+  protected readonly dp = dpClasses;
+
+  readonly placeholder = input<string | undefined>(undefined);
   readonly inputId = input<string | undefined>(undefined);
   readonly ariaLabel = input<string | undefined>(undefined);
-  readonly iconAriaLabel = input('باز کردن تقویم');
+  readonly iconAriaLabel = input<string | undefined>(undefined);
   readonly styleClass = input<string | undefined>(undefined);
+  /** Layout direction. Uses logical CSS so icons and keyboard arrows mirror correctly. */
+  readonly dir = input<DatepickerDir>('rtl');
+  /** Panel calendar system: Jalali (Persian) or Gregorian. */
+  readonly calendar = input<CalendarType>('jalali');
+  /**
+   * Built-in `'fa'` | `'en'`, or a custom locale object.
+   * Default: `fa` for Jalali, `en` for Gregorian.
+   */
+  readonly locale = input<DatepickerLocaleInput | undefined>(undefined);
+  /** Partial overrides merged on top of the resolved locale (any language). */
+  readonly translations = input<Partial<DatepickerLocale> | undefined>(undefined);
+  /**
+   * First day of the week (0 = Sunday … 6 = Saturday).
+   * Default comes from the locale (`fa` → Saturday, `en` → Sunday).
+   */
+  readonly weekStart = input<WeekStart | undefined>(undefined);
   readonly inline = input(false, { transform: booleanAttribute });
   readonly disabled = input(false, { transform: booleanAttribute });
   /**
@@ -357,7 +384,7 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
   /** Progressive `YYYY/MM/DD` typing mask (digits auto-formatted with `/`). */
   readonly mask = input(false, { transform: booleanAttribute });
   readonly selectionMode = input<'single' | 'range'>('single');
-  readonly rangeSeparator = input(' تا ');
+  readonly rangeSeparator = input<string | undefined>(undefined);
   /** Earliest selectable date (inclusive). */
   readonly minDate = input<Date | null>(null);
   /** Latest selectable date (inclusive). */
@@ -372,10 +399,10 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
   readonly parseValue = input<JalaliDatePickerParseValue | undefined>(undefined);
   readonly formatValue = input<JalaliDatePickerFormatValue | undefined>(undefined);
   readonly showDateBanner = input(true, { transform: booleanAttribute });
-  readonly selectLabel = input('انتخاب');
-  readonly cancelLabel = input('انصراف');
-  readonly todayLabel = input('امروز');
-  readonly clearLabel = input('پاک کردن');
+  readonly selectLabel = input<string | undefined>(undefined);
+  readonly cancelLabel = input<string | undefined>(undefined);
+  readonly todayLabel = input<string | undefined>(undefined);
+  readonly clearLabel = input<string | undefined>(undefined);
 
   readonly onSelect = output<JalaliDatePickerValue>();
   readonly onClear = output<void>();
@@ -383,8 +410,6 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
   readonly onShow = output<void>();
   readonly onHide = output<void>();
 
-  protected readonly weekdays = JALALI_WEEKDAY_SHORT;
-  protected readonly monthNames = JALALI_MONTH_NAMES;
   protected readonly panelId = `datepicker-ng-panel-${Math.random().toString(36).slice(2, 9)}`;
   protected readonly toPersianDigits = toPersianDigits;
   protected readonly formatJalaliDisplay = formatJalaliDisplay;
@@ -407,23 +432,82 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
   private cvaDisabled = false;
 
   protected readonly isRange = computed(() => this.selectionMode() === 'range');
+  protected readonly isRtl = computed(() => this.dir() === 'rtl');
+  protected readonly isGregorianCalendar = computed(() => this.calendar() === 'gregorian');
   protected readonly todayParts = computed(() => toJalaliParts(new Date()));
 
+  protected readonly t = computed(() =>
+    resolveDatepickerLocale(this.calendar(), this.locale(), this.translations()),
+  );
+
+  protected readonly resolvedWeekStart = computed(
+    () => this.weekStart() ?? this.t().weekStart,
+  );
+
+  protected readonly resolvedRangeSeparator = computed(
+    () => this.rangeSeparator() ?? this.t().rangeSeparator,
+  );
+
+  protected readonly resolvedPlaceholder = computed(
+    () => this.placeholder() ?? this.t().placeholder,
+  );
+  protected readonly resolvedSelectLabel = computed(() => this.selectLabel() ?? this.t().select);
+  protected readonly resolvedCancelLabel = computed(() => this.cancelLabel() ?? this.t().cancel);
+  protected readonly resolvedTodayLabel = computed(() => this.todayLabel() ?? this.t().today);
+  protected readonly resolvedClearLabel = computed(() => this.clearLabel() ?? this.t().clear);
+  protected readonly resolvedOpenLabel = computed(
+    () => this.iconAriaLabel() ?? this.t().openCalendar,
+  );
+
+  protected readonly weekdays = computed(() =>
+    rotateWeekdays(this.t().weekdaysMin, this.resolvedWeekStart()),
+  );
+
+  protected readonly monthNames = computed(() => this.t().monthNames);
+
+  protected readonly viewGregorian = computed(() => toGregorianParts(toGregorianDate(this.viewParts())));
+
   protected readonly weeks = computed(() => {
+    const weekStart = this.resolvedWeekStart();
+    const digits = this.t().digits;
+    const weekendDays = this.t().weekendDays;
+    if (this.isGregorianCalendar()) {
+      const g = this.viewGregorian();
+      return buildGregorianMonthGrid(g.gy, g.gm, new Date(), weekStart, digits, weekendDays);
+    }
     const view = this.viewParts();
-    return buildJalaliMonthGrid(view.jy, view.jm, this.todayParts());
+    return buildJalaliMonthGrid(view.jy, view.jm, this.todayParts(), weekStart, digits, weekendDays);
   });
 
-  protected readonly yearWindow = computed(() => buildJalaliYearWindow(this.viewParts().jy));
+  protected readonly yearWindow = computed(() =>
+    this.isGregorianCalendar()
+      ? buildGregorianYearWindow(this.viewGregorian().gy)
+      : buildJalaliYearWindow(this.viewParts().jy),
+  );
 
   protected readonly monthYearLabel = computed(() => {
+    const loc = this.t();
+    if (this.isGregorianCalendar()) {
+      const g = this.viewGregorian();
+      return formatGregorianMonthYear(g.gy, g.gm, loc.monthNames);
+    }
     const view = this.viewParts();
-    return formatJalaliMonthYear(view.jy, view.jm);
+    return formatJalaliMonthYear(view.jy, view.jm, loc.monthNames, loc.digits);
   });
 
   protected readonly decadeLabel = computed(() => {
     const years = this.yearWindow();
+    if (this.t().digits === 'latin' || this.isGregorianCalendar()) {
+      return `${years[1]} – ${years[10]}`;
+    }
     return `${toPersianDigits(years[1])} – ${toPersianDigits(years[10])}`;
+  });
+
+  protected readonly yearTitle = computed(() => {
+    if (this.isGregorianCalendar() || this.t().digits === 'latin') {
+      return String(this.isGregorianCalendar() ? this.viewGregorian().gy : this.viewParts().jy);
+    }
+    return toPersianDigits(this.viewParts().jy);
   });
 
   protected readonly formattedCommitted = computed(() => {
@@ -445,23 +529,68 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
     if (!start) {
       return null;
     }
+    const loc = this.t();
+    const sep = this.resolvedRangeSeparator();
+    if (this.isGregorianCalendar()) {
+      const startDate = toGregorianDate(start);
+      if (this.isRange()) {
+        const end = this.pendingEnd();
+        if (end) {
+          const endDate = toGregorianDate(end);
+          const [from, to] =
+            startDate.getTime() <= endDate.getTime()
+              ? [startDate, endDate]
+              : [endDate, startDate];
+          return {
+            year: `${from.getFullYear()} – ${to.getFullYear()}`,
+            date: formatGregorianRangeDisplay(
+              from,
+              to,
+              sep,
+              'long',
+              loc.monthNames,
+              loc.weekdaysLong,
+            ),
+          };
+        }
+        return {
+          year: String(startDate.getFullYear()),
+          date: `${formatGregorianDisplay(startDate, 'long', loc.monthNames, loc.weekdaysLong)} …`,
+        };
+      }
+      return {
+        year: String(startDate.getFullYear()),
+        date: formatGregorianDisplay(startDate, 'long', loc.monthNames, loc.weekdaysLong),
+      };
+    }
     if (this.isRange()) {
       const end = this.pendingEnd();
       if (end) {
         const [from, to] = normalizeJalaliRange(start, end);
         return {
-          year: `${toPersianDigits(from.jy)} – ${toPersianDigits(to.jy)}`,
-          date: formatJalaliRangeDisplay(from, to, this.rangeSeparator(), 'long'),
+          year:
+            loc.digits === 'latin'
+              ? `${from.jy} – ${to.jy}`
+              : `${toPersianDigits(from.jy)} – ${toPersianDigits(to.jy)}`,
+          date: formatJalaliRangeDisplay(
+            from,
+            to,
+            sep,
+            'long',
+            loc.monthNames,
+            loc.weekdaysLong,
+            loc.digits,
+          ),
         };
       }
       return {
-        year: toPersianDigits(start.jy),
-        date: `${formatJalaliDisplay(start, 'long')} …`,
+        year: loc.digits === 'latin' ? String(start.jy) : toPersianDigits(start.jy),
+        date: `${formatJalaliDisplay(start, 'long', loc.monthNames, loc.weekdaysLong, loc.digits)} …`,
       };
     }
     return {
-      year: toPersianDigits(start.jy),
-      date: formatJalaliDisplay(start, 'long'),
+      year: loc.digits === 'latin' ? String(start.jy) : toPersianDigits(start.jy),
+      date: formatJalaliDisplay(start, 'long', loc.monthNames, loc.weekdaysLong, loc.digits),
     };
   });
 
@@ -484,22 +613,18 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
   });
 
   protected readonly rootClass = computed(() =>
-    this.cn(
-      this.cx('root'),
-      {
-        'p-invalid': this.inputInvalid(),
-        'ng-invalid': this.inputInvalid(),
-        'ng-dirty': this.inputInvalid(),
-      },
-      this.styleClass(),
-    ),
+    dpClasses.root({
+      filled: this.$filled(),
+      focused: this.overlayVisible(),
+      disabled: this.$disabled(),
+      invalid: this.inputInvalid(),
+      styleClass: this.styleClass(),
+    }),
   );
 
-  protected readonly inputClass = computed(() =>
-    this.cn(this.cx('pcInputText'), { 'p-invalid': this.inputInvalid() }),
-  );
+  protected readonly inputClass = computed(() => dpClasses.input(this.inputInvalid()));
 
-  protected readonly panelClass = computed(() => this.cx('panel'));
+  protected readonly panelClass = computed(() => dpClasses.panel(this.inline()));
 
   $filled(): boolean {
     const value = this.committedDates();
@@ -569,28 +694,40 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
   }
 
   protected prevLabel(): string {
+    const loc = this.t();
     switch (this.panelView()) {
       case 'month':
-        return 'سال قبل';
+        return loc.prevYear;
       case 'year':
-        return 'دهه قبل';
+        return loc.prevDecade;
       default:
-        return 'ماه قبل';
+        return loc.prevMonth;
     }
   }
 
   protected nextLabel(): string {
+    const loc = this.t();
     switch (this.panelView()) {
       case 'month':
-        return 'سال بعد';
+        return loc.nextYear;
       case 'year':
-        return 'دهه بعد';
+        return loc.nextDecade;
       default:
-        return 'ماه بعد';
+        return loc.nextMonth;
     }
   }
 
   protected onPrev(): void {
+    if (this.isGregorianCalendar()) {
+      if (this.panelView() === 'date') {
+        this.shiftGregorianView((g) => addGregorianMonths(g, -1));
+      } else if (this.panelView() === 'month') {
+        this.shiftGregorianView((g) => addGregorianYears(g, -1));
+      } else {
+        this.shiftGregorianView((g) => addGregorianYears(g, -10));
+      }
+      return;
+    }
     if (this.panelView() === 'date') {
       this.viewParts.update((current) => addJalaliMonths(current, -1));
     } else if (this.panelView() === 'month') {
@@ -601,6 +738,16 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
   }
 
   protected onNext(): void {
+    if (this.isGregorianCalendar()) {
+      if (this.panelView() === 'date') {
+        this.shiftGregorianView((g) => addGregorianMonths(g, 1));
+      } else if (this.panelView() === 'month') {
+        this.shiftGregorianView((g) => addGregorianYears(g, 1));
+      } else {
+        this.shiftGregorianView((g) => addGregorianYears(g, 10));
+      }
+      return;
+    }
     if (this.panelView() === 'date') {
       this.viewParts.update((current) => addJalaliMonths(current, 1));
     } else if (this.panelView() === 'month') {
@@ -622,23 +769,35 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
     }
   }
 
-  protected selectMonth(jm: number): void {
-    if (this.$disabled() || this.isMonthDisabled(jm)) {
+  protected selectMonth(month: number): void {
+    if (this.$disabled() || this.isMonthDisabled(month)) {
+      return;
+    }
+    if (this.isGregorianCalendar()) {
+      const g = this.viewGregorian();
+      this.viewParts.set(toJalaliParts(new Date(g.gy, month - 1, 1)));
+      this.panelView.set('date');
       return;
     }
     this.viewParts.update((current) => ({
       jy: current.jy,
-      jm,
+      jm: month,
       jd: Math.min(current.jd, 29),
     }));
     this.panelView.set('date');
   }
 
-  protected selectYear(jy: number): void {
-    if (this.$disabled() || this.isYearDisabled(jy)) {
+  protected selectYear(year: number): void {
+    if (this.$disabled() || this.isYearDisabled(year)) {
       return;
     }
-    this.viewParts.update((current) => ({ ...current, jy }));
+    if (this.isGregorianCalendar()) {
+      const g = this.viewGregorian();
+      this.viewParts.set(toJalaliParts(new Date(year, g.gm - 1, 1)));
+      this.panelView.set('month');
+      return;
+    }
+    this.viewParts.update((current) => ({ ...current, jy: year }));
     this.panelView.set('month');
   }
 
@@ -673,7 +832,12 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
     }
 
     if (cell.otherMonth) {
-      this.viewParts.set({ jy: cell.parts.jy, jm: cell.parts.jm, jd: 1 });
+      if (this.isGregorianCalendar()) {
+        const g = toGregorianParts(toGregorianDate(cell.parts));
+        this.viewParts.set(toJalaliParts(new Date(g.gy, g.gm - 1, 1)));
+      } else {
+        this.viewParts.set({ jy: cell.parts.jy, jm: cell.parts.jm, jd: 1 });
+      }
     }
   }
 
@@ -771,32 +935,55 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
     return !isJalaliPartsWithinBounds(parts, this.minDate(), this.maxDate());
   }
 
-  protected isMonthDisabled(jm: number): boolean {
-    const jy = this.viewParts().jy;
+  protected isMonthDisabled(month: number): boolean {
     const min = this.minDate();
     const max = this.maxDate();
+    if (this.isGregorianCalendar()) {
+      const gy = this.viewGregorian().gy;
+      if (min) {
+        if (gy < min.getFullYear() || (gy === min.getFullYear() && month < min.getMonth() + 1)) {
+          return true;
+        }
+      }
+      if (max) {
+        if (gy > max.getFullYear() || (gy === max.getFullYear() && month > max.getMonth() + 1)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    const jy = this.viewParts().jy;
     if (min) {
       const minParts = toJalaliParts(min);
-      if (jy < minParts.jy || (jy === minParts.jy && jm < minParts.jm)) {
+      if (jy < minParts.jy || (jy === minParts.jy && month < minParts.jm)) {
         return true;
       }
     }
     if (max) {
       const maxParts = toJalaliParts(max);
-      if (jy > maxParts.jy || (jy === maxParts.jy && jm > maxParts.jm)) {
+      if (jy > maxParts.jy || (jy === maxParts.jy && month > maxParts.jm)) {
         return true;
       }
     }
     return false;
   }
 
-  protected isYearDisabled(jy: number): boolean {
+  protected isYearDisabled(year: number): boolean {
     const min = this.minDate();
     const max = this.maxDate();
-    if (min && jy < toJalaliParts(min).jy) {
+    if (this.isGregorianCalendar()) {
+      if (min && year < min.getFullYear()) {
+        return true;
+      }
+      if (max && year > max.getFullYear()) {
+        return true;
+      }
+      return false;
+    }
+    if (min && year < toJalaliParts(min).jy) {
       return true;
     }
-    if (max && jy > toJalaliParts(max).jy) {
+    if (max && year > toJalaliParts(max).jy) {
       return true;
     }
     return false;
@@ -806,20 +993,73 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
     return isSameJalaliDay(parts, this.focusedParts());
   }
 
-  protected dayCellClass(cell: JalaliDayCell): string | undefined {
-    return this.cx('dayCell', {
+  protected isWeekendColumn(index: number): boolean {
+    const day = (this.resolvedWeekStart() + index) % 7;
+    return this.t().weekendDays.includes(day as WeekStart);
+  }
+
+  protected formatYearLabel(year: number): string {
+    return this.t().digits === 'latin' || this.isGregorianCalendar()
+      ? String(year)
+      : toPersianDigits(year);
+  }
+
+  protected dayAriaLabel(cell: JalaliDayCell): string {
+    const loc = this.t();
+    if (this.isGregorianCalendar()) {
+      return formatGregorianDisplay(
+        toGregorianDate(cell.parts),
+        'long',
+        loc.monthNames,
+        loc.weekdaysLong,
+      );
+    }
+    return formatJalaliDisplay(cell.parts, 'long', loc.monthNames, loc.weekdaysLong, loc.digits);
+  }
+
+  protected monthClass(month: number): string {
+    const selected = this.isGregorianCalendar()
+      ? this.viewGregorian().gm === month
+      : this.viewParts().jm === month;
+    return dpClasses.month({
+      selected,
+      disabled: this.isMonthDisabled(month),
+    });
+  }
+
+  protected yearClass(year: number): string {
+    const selected = this.isGregorianCalendar()
+      ? this.viewGregorian().gy === year
+      : this.viewParts().jy === year;
+    return dpClasses.year({
+      selected,
+      disabled: this.isYearDisabled(year),
+    });
+  }
+
+  protected dayCellClass(cell: JalaliDayCell): string {
+    return dpClasses.dayCell({
       otherMonth: cell.otherMonth,
       today: cell.today,
       friday: cell.friday,
     });
   }
 
-  protected dayClass(cell: JalaliDayCell): string | undefined {
-    return this.cx('day', {
+  protected dayClass(cell: JalaliDayCell): string {
+    return dpClasses.day({
       selected: this.isDaySelected(cell.parts),
       selectedRange: this.isDayInRange(cell.parts),
       disabled: this.isDayDisabled(cell.parts),
+      today: cell.today,
+      friday: cell.friday,
     });
+  }
+
+  private shiftGregorianView(
+    mutate: (parts: ReturnType<typeof toGregorianParts>) => ReturnType<typeof toGregorianParts>,
+  ): void {
+    const next = mutate(this.viewGregorian());
+    this.viewParts.set(toJalaliParts(new Date(next.gy, next.gm - 1, 1)));
   }
 
   protected onInputClick(event: MouseEvent): void {
@@ -850,7 +1090,10 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
     let value = el.value;
 
     if (this.mask()) {
-      const digits = this.inputCalendar() === 'gregorian' ? 'latin' : 'persian';
+      const digits =
+        this.calendar() === 'gregorian' || this.inputCalendar() === 'gregorian'
+          ? 'latin'
+          : 'persian';
       value = applySlashDateMask(value, digits);
       const start = el.selectionStart ?? value.length;
       el.value = value;
@@ -937,13 +1180,21 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
 
     if (event.key === 'PageUp') {
       event.preventDefault();
-      this.viewParts.update((current) => addJalaliMonths(current, event.shiftKey ? -12 : -1));
+      if (this.isGregorianCalendar()) {
+        this.shiftGregorianView((g) => addGregorianMonths(g, event.shiftKey ? -12 : -1));
+      } else {
+        this.viewParts.update((current) => addJalaliMonths(current, event.shiftKey ? -12 : -1));
+      }
       return;
     }
 
     if (event.key === 'PageDown') {
       event.preventDefault();
-      this.viewParts.update((current) => addJalaliMonths(current, event.shiftKey ? 12 : 1));
+      if (this.isGregorianCalendar()) {
+        this.shiftGregorianView((g) => addGregorianMonths(g, event.shiftKey ? 12 : 1));
+      } else {
+        this.viewParts.update((current) => addJalaliMonths(current, event.shiftKey ? 12 : 1));
+      }
     }
   }
 
@@ -969,7 +1220,7 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
     if (!target) {
       return;
     }
-    const host = this.el.nativeElement as HTMLElement;
+    const host = this.hostEl.nativeElement;
     if (!host.contains(target)) {
       this.hide();
     }
@@ -986,12 +1237,12 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
   }
 
   private arrowDayDelta(key: string): number {
-    // RTL grid: visual right is earlier days.
+    const rtl = this.isRtl();
     switch (key) {
       case 'ArrowRight':
-        return -1;
+        return rtl ? -1 : 1;
       case 'ArrowLeft':
-        return 1;
+        return rtl ? 1 : -1;
       case 'ArrowUp':
         return -7;
       case 'ArrowDown':
@@ -1018,7 +1269,7 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
   private focusDayCell(): void {
     queueMicrotask(() => {
       const panel = this.panelEl()?.nativeElement;
-      const focused = panel?.querySelector<HTMLElement>('.p-datepicker-day[tabindex="0"]');
+      const focused = panel?.querySelector<HTMLElement>('.dp-day[tabindex="0"]');
       focused?.focus();
     });
   }
@@ -1037,7 +1288,7 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
     }
 
     if (this.isRange()) {
-      const parts = trimmed.split(this.rangeSeparator()).map((p) => p.trim());
+      const parts = trimmed.split(this.resolvedRangeSeparator()).map((p) => p.trim());
       if (parts.length !== 2) {
         this.markInvalid(trimmed);
         return;
@@ -1068,8 +1319,14 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
   }
 
   private parseInputText(text: string): Date | null {
-    if (this.inputCalendar() === 'gregorian') {
-      return parseGregorianDateString(text);
+    if (this.inputCalendar() === 'gregorian' || this.calendar() === 'gregorian') {
+      return (
+        parseGregorianDateString(text) ??
+        (() => {
+          const parts = parseJalaliDateString(text);
+          return parts ? toGregorianDate(parts) : null;
+        })()
+      );
     }
     const parts = parseJalaliDateString(text);
     return parts ? toGregorianDate(parts) : null;
@@ -1091,7 +1348,7 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
   }
 
   private formatDatePairForInput(start: Date, end: Date): string {
-    return `${this.formatDateForInput(start)}${this.rangeSeparator()}${this.formatDateForInput(end)}`;
+    return `${this.formatDateForInput(start)}${this.resolvedRangeSeparator()}${this.formatDateForInput(end)}`;
   }
 
   private resolveDisplayFormat(): JalaliDatePickerDisplayFormat {
@@ -1099,10 +1356,12 @@ export class JalaliDatePicker extends BaseComponent implements ControlValueAcces
     if (explicit) {
       return explicit;
     }
+    const preferGregorian =
+      this.calendar() === 'gregorian' || this.inputCalendar() === 'gregorian';
     if (this.mask()) {
-      return this.inputCalendar() === 'gregorian' ? 'gregorian-slash' : 'jalali-slash';
+      return preferGregorian ? 'gregorian-slash' : 'jalali-slash';
     }
-    return this.inputCalendar() === 'gregorian' ? 'gregorian-slash' : 'jalali-short';
+    return preferGregorian ? 'gregorian-slash' : 'jalali-short';
   }
 
   private isInternalWithinBounds(internal: Date | Date[]): boolean {

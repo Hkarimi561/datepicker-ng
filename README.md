@@ -1,6 +1,10 @@
 # datepicker-ng
 
-Angular Jalali (Persian / Shamsi) datepicker built on PrimeNG.
+<p align="center">
+  <img src="assets/banner.png" alt="datepicker-ng — Angular Jalali Datepicker" width="1280" />
+</p>
+
+Angular Jalali (Persian / Shamsi) datepicker styled with **Tailwind CSS**. Supports **RTL** and **LTR**.
 
 ## Install
 
@@ -10,31 +14,85 @@ npm install datepicker-ng
 
 ### Peer dependencies
 
-Your app must provide:
-
 ```bash
-npm install @angular/core @angular/common @angular/forms primeng @primeuix/styles @lucide/angular rxjs
+npm install @angular/core @angular/common @angular/forms @lucide/angular rxjs
 ```
 
-Configure a PrimeNG theme (same as other PrimeNG components), for example:
+Your app must use **Tailwind CSS v4** (or v3 with content scanning) and include this package in the scan path so utility classes used by the component are generated.
 
-```ts
-import { ApplicationConfig } from '@angular/core';
-import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
-import { providePrimeNG } from 'primeng/config';
-import Aura from '@primeuix/themes/aura';
+**Tailwind v4** (CSS-first):
 
-export const appConfig: ApplicationConfig = {
-  providers: [
-    provideAnimationsAsync(),
-    providePrimeNG({
-      theme: {
-        preset: Aura,
-      },
-    }),
+```css
+@import 'tailwindcss';
+@source '../node_modules/datepicker-ng/**/*.{mjs,js}';
+```
+
+**Tailwind v3** (`tailwind.config.js`):
+
+```js
+module.exports = {
+  content: [
+    './src/**/*.{html,ts}',
+    './node_modules/datepicker-ng/**/*.{mjs,js}',
   ],
+  // ...
 };
 ```
+
+### Locale & translations
+
+English labels apply automatically when `calendar="gregorian"` (unless you set `locale` / `translations`).
+
+```ts
+import { DATEPICKER_LOCALE_EN, DatepickerLocale } from 'datepicker-ng';
+
+// Built-in
+<datepicker-ng calendar="gregorian" locale="en" />
+
+// Custom language (e.g. Arabic / German / …)
+const ar: Partial<DatepickerLocale> = {
+  select: 'اختيار',
+  cancel: 'إلغاء',
+  today: 'اليوم',
+  clear: 'مسح',
+  monthNames: [/* 12 names */],
+  weekdaysMin: [/* 7 short names, Sunday-first */],
+  weekStart: 6,
+};
+
+<datepicker-ng [translations]="ar" />
+
+// Week starts Monday
+<datepicker-ng calendar="gregorian" locale="en" [weekStart]="1" />
+```
+
+### Accent color
+
+Override CSS variables on a parent or `:root`:
+
+```css
+:root {
+  --dp-accent: #0d7377;
+  --dp-on-accent: #ffffff; /* text on selected / accent — keep readable */
+  --dp-surface: #ffffff;
+  --dp-border: #c5d0de;
+  --dp-text: #101828;
+  --dp-muted: #5a6a7e;
+  --dp-hover: #eef2f6;
+}
+
+.dark {
+  --dp-accent: #2ec4b6;
+  --dp-on-accent: #04201c;
+  --dp-surface: #121a24;
+  --dp-border: #243041;
+  --dp-text: #e6edf5;
+  --dp-muted: #8b9aab;
+  --dp-hover: #1a2432;
+}
+```
+
+Use `contrastingOnAccent(hex, 'light' | 'dark')` from `datepicker-ng` to pick a readable `--dp-on-accent` for any custom accent.
 
 ## Usage
 
@@ -50,6 +108,8 @@ import { JalaliDatePicker } from 'datepicker-ng';
   imports: [FormsModule, JalaliDatePicker],
   template: `
     <datepicker-ng [(ngModel)]="date" placeholder="انتخاب تاریخ" />
+    <!-- LTR layout -->
+    <datepicker-ng [(ngModel)]="date" dir="ltr" />
   `,
 })
 export class DemoComponent {
@@ -67,7 +127,12 @@ export class DemoComponent {
 
 | Input | Description |
 | --- | --- |
-| `placeholder` | Input placeholder |
+| `dir` | `'rtl'` (default) \| `'ltr'` — layout, chevrons, arrow keys |
+| `calendar` | `'jalali'` (default) \| `'gregorian'` — panel calendar system |
+| `locale` | `'fa'` \| `'en'` \| custom locale object. Default: `fa` for Jalali, `en` for Gregorian |
+| `translations` | `Partial<DatepickerLocale>` overrides (any language) |
+| `weekStart` | `0`–`6` (Sun–Sat). Default from locale (`fa`→Sat, `en`→Sun) |
+| `placeholder` | Input placeholder (falls back to locale) |
 | `selectionMode` | `'single'` \| `'range'` |
 | `inline` | Show calendar without overlay |
 | `disabled` | Disable the control |
@@ -78,6 +143,7 @@ export class DemoComponent {
 | `displayFormat` | e.g. `'jalali-short'`, `'jalali-slash'`, `'gregorian-slash'` |
 | `showClear` | Show clear icon |
 | `autoCommit` | Commit selection immediately |
+| `styleClass` | Extra classes on the root |
 
 ### Outputs
 
@@ -89,7 +155,8 @@ export class DemoComponent {
 import {
   JalaliDatePicker,
   DatepickerNg, // alias of JalaliDatePicker
-  JalaliDatePickerStyle,
+  DatepickerDir,
+  JalaliDatePickerClasses,
   // calendar helpers
   toJalaliParts,
   toGregorianDate,

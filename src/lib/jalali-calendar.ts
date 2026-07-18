@@ -35,6 +35,44 @@ export const JALALI_WEEKDAY_LONG = [
   'جمعه',
 ] as const;
 
+/** Gregorian month names (English). */
+export const GREGORIAN_MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+/** Weekday labels starting Sunday (Gregorian week). */
+export const GREGORIAN_WEEKDAY_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const;
+
+export const GREGORIAN_WEEKDAY_LONG = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+] as const;
+
+/** Which calendar the panel grid uses. */
+export type CalendarType = 'jalali' | 'gregorian';
+
+export interface GregorianDateParts {
+  gy: number;
+  gm: number;
+  gd: number;
+}
+
 const PERSIAN_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'] as const;
 const ARABIC_DIGITS = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'] as const;
 
@@ -83,6 +121,21 @@ const RELATIVE_DAY_OFFSETS: Readonly<Record<string, number>> = {
   overmorrow: 2,
   'day before yesterday': -2,
 };
+
+/** Showcase / docs: relative keywords users can type in the input. */
+export const RELATIVE_DATE_KEYWORDS = [
+  { keyword: 'امروز', lang: 'fa', offset: 0 },
+  { keyword: 'دیروز', lang: 'fa', offset: -1 },
+  { keyword: 'پریروز', lang: 'fa', offset: -2 },
+  { keyword: 'فردا', lang: 'fa', offset: 1 },
+  { keyword: 'پس فردا', lang: 'fa', offset: 2 },
+  { keyword: 'today', lang: 'en', offset: 0 },
+  { keyword: 'yesterday', lang: 'en', offset: -1 },
+  { keyword: 'tomorrow', lang: 'en', offset: 1 },
+  { keyword: 'day after tomorrow', lang: 'en', offset: 2 },
+  { keyword: 'day before yesterday', lang: 'en', offset: -2 },
+  { keyword: 'overmorrow', lang: 'en', offset: 2 },
+] as const;
 
 function normalizeRelativeKeyword(raw: string): string {
   return toLatinDigits(raw)
@@ -323,14 +376,23 @@ export function jalaliWeekdayIndex(parts: JalaliDateParts): number {
   return (date.getDay() + 1) % 7;
 }
 
-export function formatJalaliDisplay(parts: JalaliDateParts, pattern: 'short' | 'long' = 'short'): string {
-  const month = JALALI_MONTH_NAMES[parts.jm - 1];
-  const day = toPersianDigits(parts.jd);
-  const year = toPersianDigits(parts.jy);
+export function formatJalaliDisplay(
+  parts: JalaliDateParts,
+  pattern: 'short' | 'long' = 'short',
+  monthNames: readonly string[] = JALALI_MONTH_NAMES,
+  /** Sunday-first long weekday names. When omitted, uses built-in Saturday-first FA list. */
+  weekdaysLongSunFirst?: readonly string[],
+  digits: 'persian' | 'latin' = 'persian',
+): string {
+  const month = monthNames[parts.jm - 1];
+  const day = digits === 'persian' ? toPersianDigits(parts.jd) : String(parts.jd);
+  const year = digits === 'persian' ? toPersianDigits(parts.jy) : String(parts.jy);
 
   if (pattern === 'long') {
-    const weekday = JALALI_WEEKDAY_LONG[jalaliWeekdayIndex(parts)];
-    return `${weekday} ${day} ${month} ماه`;
+    const weekday = weekdaysLongSunFirst
+      ? weekdaysLongSunFirst[toGregorianDate(parts).getDay()]
+      : JALALI_WEEKDAY_LONG[jalaliWeekdayIndex(parts)];
+    return weekdaysLongSunFirst ? `${weekday} ${day} ${month}` : `${weekday} ${day} ${month} ماه`;
   }
 
   return `${day} ${month} ${year}`;
@@ -341,13 +403,22 @@ export function formatJalaliRangeDisplay(
   end: JalaliDateParts,
   separator = ' تا ',
   pattern: 'short' | 'long' = 'short',
+  monthNames?: readonly string[],
+  weekdaysLongSunFirst?: readonly string[],
+  digits: 'persian' | 'latin' = 'persian',
 ): string {
   const [from, to] = normalizeJalaliRange(start, end);
-  return `${formatJalaliDisplay(from, pattern)}${separator}${formatJalaliDisplay(to, pattern)}`;
+  return `${formatJalaliDisplay(from, pattern, monthNames, weekdaysLongSunFirst, digits)}${separator}${formatJalaliDisplay(to, pattern, monthNames, weekdaysLongSunFirst, digits)}`;
 }
 
-export function formatJalaliMonthYear(jy: number, jm: number): string {
-  return `${JALALI_MONTH_NAMES[jm - 1]} ${toPersianDigits(jy)}`;
+export function formatJalaliMonthYear(
+  jy: number,
+  jm: number,
+  monthNames: readonly string[] = JALALI_MONTH_NAMES,
+  digits: 'persian' | 'latin' = 'persian',
+): string {
+  const year = digits === 'persian' ? toPersianDigits(jy) : String(jy);
+  return `${monthNames[jm - 1]} ${year}`;
 }
 
 /** Strip time so min/max comparisons are date-only. */
@@ -380,7 +451,7 @@ export function addJalaliYears(parts: JalaliDateParts, delta: number): JalaliDat
   return { jy, jm: parts.jm, jd: Math.min(parts.jd, maxDay) };
 }
 
-/** 12-year window around `jy` (PrimeNG-style decade picker). */
+/** 12-year window around `jy` (decade-style year picker). */
 export function buildJalaliYearWindow(jy: number): number[] {
   const start = jy - ((jy % 10) + 1);
   return Array.from({ length: 12 }, (_, i) => start + i);
@@ -409,9 +480,90 @@ export interface JalaliDayCell {
   label: string;
 }
 
-export function buildJalaliMonthGrid(jy: number, jm: number, today: JalaliDateParts): JalaliDayCell[][] {
+export function toGregorianParts(date: Date): GregorianDateParts {
+  return {
+    gy: date.getFullYear(),
+    gm: date.getMonth() + 1,
+    gd: date.getDate(),
+  };
+}
+
+export function fromGregorianParts(parts: GregorianDateParts): Date {
+  return new Date(parts.gy, parts.gm - 1, parts.gd);
+}
+
+export function gregorianMonthLength(gy: number, gm: number): number {
+  return new Date(gy, gm, 0).getDate();
+}
+
+export function addGregorianMonths(parts: GregorianDateParts, delta: number): GregorianDateParts {
+  const date = new Date(parts.gy, parts.gm - 1 + delta, 1);
+  const maxDay = gregorianMonthLength(date.getFullYear(), date.getMonth() + 1);
+  return {
+    gy: date.getFullYear(),
+    gm: date.getMonth() + 1,
+    gd: Math.min(parts.gd, maxDay),
+  };
+}
+
+export function addGregorianYears(parts: GregorianDateParts, delta: number): GregorianDateParts {
+  const gy = parts.gy + delta;
+  const maxDay = gregorianMonthLength(gy, parts.gm);
+  return { gy, gm: parts.gm, gd: Math.min(parts.gd, maxDay) };
+}
+
+/** 12-year window around `gy` (decade-style year picker). */
+export function buildGregorianYearWindow(gy: number): number[] {
+  const start = gy - ((gy % 10) + 1);
+  return Array.from({ length: 12 }, (_, i) => start + i);
+}
+
+export function formatGregorianMonthYear(
+  gy: number,
+  gm: number,
+  monthNames: readonly string[] = GREGORIAN_MONTH_NAMES,
+): string {
+  return `${monthNames[gm - 1]} ${gy}`;
+}
+
+export function formatGregorianDisplay(
+  date: Date,
+  pattern: 'short' | 'long' = 'short',
+  monthNames: readonly string[] = GREGORIAN_MONTH_NAMES,
+  weekdaysLong: readonly string[] = GREGORIAN_WEEKDAY_LONG,
+): string {
+  const parts = toGregorianParts(date);
+  const month = monthNames[parts.gm - 1];
+  if (pattern === 'long') {
+    const weekday = weekdaysLong[date.getDay()];
+    return `${weekday}, ${month} ${parts.gd}`;
+  }
+  return `${month} ${parts.gd}, ${parts.gy}`;
+}
+
+export function formatGregorianRangeDisplay(
+  start: Date,
+  end: Date,
+  separator = ' – ',
+  pattern: 'short' | 'long' = 'short',
+  monthNames: readonly string[] = GREGORIAN_MONTH_NAMES,
+  weekdaysLong: readonly string[] = GREGORIAN_WEEKDAY_LONG,
+): string {
+  const [from, to] = start.getTime() <= end.getTime() ? [start, end] : [end, start];
+  return `${formatGregorianDisplay(from, pattern, monthNames, weekdaysLong)}${separator}${formatGregorianDisplay(to, pattern, monthNames, weekdaysLong)}`;
+}
+
+export function buildJalaliMonthGrid(
+  jy: number,
+  jm: number,
+  today: JalaliDateParts,
+  weekStart: number = 6,
+  digits: 'persian' | 'latin' = 'persian',
+  weekendDays: readonly number[] = [5],
+): JalaliDayCell[][] {
   const daysInMonth = jalaliMonthLength(jy, jm);
-  const firstWeekday = jalaliWeekdayIndex({ jy, jm, jd: 1 });
+  const firstJsDay = toGregorianDate({ jy, jm, jd: 1 }).getDay();
+  const firstWeekday = (firstJsDay - weekStart + 7) % 7;
   const prev = addJalaliMonths({ jy, jm, jd: 1 }, -1);
   const prevDays = jalaliMonthLength(prev.jy, prev.jm);
   const next = addJalaliMonths({ jy, jm, jd: 1 }, 1);
@@ -421,18 +573,18 @@ export function buildJalaliMonthGrid(jy: number, jm: number, today: JalaliDatePa
   for (let i = firstWeekday - 1; i >= 0; i -= 1) {
     const jd = prevDays - i;
     const parts = { jy: prev.jy, jm: prev.jm, jd };
-    cells.push(createCell(parts, true, today));
+    cells.push(createJalaliCell(parts, true, today, digits, weekendDays));
   }
 
   for (let jd = 1; jd <= daysInMonth; jd += 1) {
     const parts = { jy, jm, jd };
-    cells.push(createCell(parts, false, today));
+    cells.push(createJalaliCell(parts, false, today, digits, weekendDays));
   }
 
   let nextDay = 1;
   while (cells.length % 7 !== 0 || cells.length < 42) {
     const parts = { jy: next.jy, jm: next.jm, jd: nextDay };
-    cells.push(createCell(parts, true, today));
+    cells.push(createJalaliCell(parts, true, today, digits, weekendDays));
     nextDay += 1;
     if (cells.length >= 42) {
       break;
@@ -446,13 +598,86 @@ export function buildJalaliMonthGrid(jy: number, jm: number, today: JalaliDatePa
   return weeks;
 }
 
-function createCell(parts: JalaliDateParts, otherMonth: boolean, today: JalaliDateParts): JalaliDayCell {
-  const weekday = jalaliWeekdayIndex(parts);
+/**
+ * Gregorian month grid. Cells still carry Jalali `parts`
+ * so selection / valueFormat stay consistent.
+ */
+export function buildGregorianMonthGrid(
+  gy: number,
+  gm: number,
+  today: Date = new Date(),
+  weekStart: number = 0,
+  digits: 'persian' | 'latin' = 'latin',
+  weekendDays: readonly number[] = [0],
+): JalaliDayCell[][] {
+  const daysInMonth = gregorianMonthLength(gy, gm);
+  const firstJsDay = new Date(gy, gm - 1, 1).getDay();
+  const firstWeekday = (firstJsDay - weekStart + 7) % 7;
+  const prev = addGregorianMonths({ gy, gm, gd: 1 }, -1);
+  const prevDays = gregorianMonthLength(prev.gy, prev.gm);
+  const next = addGregorianMonths({ gy, gm, gd: 1 }, 1);
+  const todayParts = toJalaliParts(today);
+
+  const cells: JalaliDayCell[] = [];
+
+  for (let i = firstWeekday - 1; i >= 0; i -= 1) {
+    const gd = prevDays - i;
+    const date = new Date(prev.gy, prev.gm - 1, gd);
+    cells.push(createGregorianCell(date, true, todayParts, digits, weekendDays));
+  }
+
+  for (let gd = 1; gd <= daysInMonth; gd += 1) {
+    const date = new Date(gy, gm - 1, gd);
+    cells.push(createGregorianCell(date, false, todayParts, digits, weekendDays));
+  }
+
+  let nextDay = 1;
+  while (cells.length % 7 !== 0 || cells.length < 42) {
+    const date = new Date(next.gy, next.gm - 1, nextDay);
+    cells.push(createGregorianCell(date, true, todayParts, digits, weekendDays));
+    nextDay += 1;
+    if (cells.length >= 42) {
+      break;
+    }
+  }
+
+  const weeks: JalaliDayCell[][] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    weeks.push(cells.slice(i, i + 7));
+  }
+  return weeks;
+}
+
+function createJalaliCell(
+  parts: JalaliDateParts,
+  otherMonth: boolean,
+  today: JalaliDateParts,
+  digits: 'persian' | 'latin',
+  weekendDays: readonly number[],
+): JalaliDayCell {
+  const jsDay = toGregorianDate(parts).getDay();
   return {
     parts,
     otherMonth,
     today: isSameJalaliDay(parts, today),
-    friday: weekday === 6,
-    label: toPersianDigits(parts.jd),
+    friday: weekendDays.includes(jsDay),
+    label: digits === 'persian' ? toPersianDigits(parts.jd) : String(parts.jd),
+  };
+}
+
+function createGregorianCell(
+  date: Date,
+  otherMonth: boolean,
+  today: JalaliDateParts,
+  digits: 'persian' | 'latin',
+  weekendDays: readonly number[],
+): JalaliDayCell {
+  const parts = toJalaliParts(date);
+  return {
+    parts,
+    otherMonth,
+    today: isSameJalaliDay(parts, today),
+    friday: weekendDays.includes(date.getDay()),
+    label: digits === 'persian' ? toPersianDigits(date.getDate()) : String(date.getDate()),
   };
 }
