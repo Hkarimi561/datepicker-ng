@@ -220,28 +220,42 @@ Live demo: [Hkarimi561.github.io/datepicker-ng](https://Hkarimi561.github.io/dat
 
 In the repo: **Settings → Pages → Source: GitHub Actions**.
 
-### Publish setup (Trusted Publishing — no token)
+### Publish setup
 
-Classic npm token types are gone. CI should use **Trusted Publishing** (OIDC), not a long-lived token.
+> **Note:** The unscoped name `datepicker-ng` is blocked by npm (too similar to `date-picker-ng`). This package publishes as `@hamidrezz/datepicker-ng`.
+
+#### 1. First publish (required once)
+
+Trusted Publishing cannot create a **new** package — the package must exist first. Do one of:
+
+**Option A — locally (simplest):**
+
+```bash
+npm login
+npm run build
+npm publish ./dist/datepicker-ng --access public
+```
+
+**Option B — CI with a granular token:**
+
+1. npm → [Access Tokens](https://www.npmjs.com/settings/~/tokens) → Granular Access Token
+2. Permissions: **Read and write**, packages: `@hamidrezz/datepicker-ng` (or your user scope)
+3. Enable **Bypass 2FA** (required or CI fails with `EOTP`)
+4. GitHub → Settings → Secrets and variables → Actions → **Repository secrets** → `NPM_TOKEN`
+5. Re-run the Publish workflow
+
+Secrets under **Environments** are ignored unless the job sets `environment: <name>`.
+
+#### 2. Trusted Publishing (optional, after the package exists)
 
 1. Open https://www.npmjs.com/package/@hamidrezz/datepicker-ng → **Settings** → **Trusted Publisher**
 2. Choose **GitHub Actions** and set:
    - Organization or user: `Hkarimi561`
    - Repository: `datepicker-ng`
-   - Workflow filename: `publish.yml` (filename only)
-   - Environment name: leave **empty** (unless you enable `environment:` in the workflow)
-   - Allowed actions: enable **npm publish**
-3. Save, then bump version and push (or re-run the workflow)
-
-No `NPM_TOKEN` is required for publish when Trusted Publishing is configured.
-
-> **Note:** The unscoped name `datepicker-ng` is blocked by npm (too similar to `date-picker-ng`). This package publishes as `@hamidrezz/datepicker-ng`.
-
-#### If you still use a granular token
-
-- When creating the token, enable **Bypass 2FA** (unchecked by default) or CI fails with `EOTP`.
-- Put the secret under **Settings → Secrets and variables → Actions → Repository secrets** as `NPM_TOKEN`.
-- Secrets under **Environments** are **not** visible unless the job has `environment: <that-name>`. Your publish job does not use an environment by default, so an Environment secret alone will not work.
+   - Workflow filename: `publish.yml`
+   - Environment name: leave **empty**
+   - Allowed actions: **npm publish**
+3. Later publishes can use OIDC; keep `NPM_TOKEN` as a fallback or remove it once Trusted Publishing works.
 
 To release: bump `"version"` in `package.json`, commit, and push to `main`. CI skips publish if that version already exists on npm.
 

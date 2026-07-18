@@ -60,8 +60,10 @@ jobs:
         if: steps.check.outputs.exists == 'false'
         run: npm run build
 
-      # Auth via npm Trusted Publishing (OIDC) — no NPM_TOKEN needed.
-      # Configure once: https://www.npmjs.com/package/@hamidrezz/datepicker-ng → Settings → Trusted Publisher
+      # First publish of a new package needs NPM_TOKEN (Trusted Publishing only works
+      # after the package exists). Later, OIDC Trusted Publisher can replace the token.
       - name: Publish package
         if: steps.check.outputs.exists == 'false'
         run: npm publish ./dist/datepicker-ng --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
