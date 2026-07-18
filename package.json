@@ -1,0 +1,68 @@
+{
+  "name": "datepicker-ng",
+  "version": "0.1.0",
+  "description": "Angular Jalali (Persian) datepicker built on PrimeNG",
+  "license": "MIT",
+  "keywords": [
+    "angular",
+    "datepicker",
+    "jalali",
+    "persian",
+    "shamsi",
+    "primeng",
+    "datepicker-ng"
+  ],
+  "author": "Hamidreza Karimi",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hkarimi561/datepicker-ng.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Hkarimi561/datepicker-ng/issues"
+  },
+  "homepage": "https://github.com/Hkarimi561/datepicker-ng#readme",
+  "sideEffects": false,
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve showcase --port=4400",
+    "build": "ng build datepicker-ng",
+    "build:showcase": "ng build showcase",
+    "build:all": "npm run build && npm run build:showcase",
+    "test": "ng test datepicker-ng",
+    "publish:lib": "npm run build && npm publish ./dist/datepicker-ng --access public"
+  },
+  "peerDependencies": {
+    "@angular/common": "^22.0.0",
+    "@angular/core": "^22.0.0",
+    "@angular/forms": "^22.0.0",
+    "@lucide/angular": "^1.23.0",
+    "@primeuix/styles": ">=3.0.0-rc.1",
+    "primeng": ">=22.0.0-rc.1",
+    "rxjs": "^7.8.0"
+  },
+  "dependencies": {
+    "jalaali-js": "^1.2.7",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.0.6",
+    "@angular/cli": "^22.0.6",
+    "@angular/common": "^22.0.0",
+    "@angular/compiler": "^22.0.0",
+    "@angular/compiler-cli": "^22.0.0",
+    "@angular/core": "^22.0.0",
+    "@angular/forms": "^22.0.0",
+    "@angular/animations": "^22.0.0",
+    "@angular/platform-browser": "^22.0.0",
+    "@lucide/angular": "^1.23.0",
+    "@primeuix/styles": "3.0.0-rc.1",
+    "@primeuix/themes": "3.0.0-rc.1",
+    "@types/jalaali-js": "^1.2.0",
+    "jsdom": "^28.0.0",
+    "ng-packagr": "^22.0.0",
+    "primeng": "22.0.0-rc.1",
+    "rxjs": "~7.8.0",
+    "typescript": "~6.0.2",
+    "vitest": "^4.0.8"
+  }
+}

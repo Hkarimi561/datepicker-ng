@@ -1,0 +1,29 @@
+:root {
+  --ink: #1c2a24;
+  --muted: #5b6b63;
+  --accent: #0f766e;
+  --panel: #f7faf8;
+  --line: #d7e2dc;
+  --bg-top: #e8f3ef;
+  --bg-bottom: #f4f1ea;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Vazirmatn', Tahoma, sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 500px at 10% -10%, var(--bg-top), transparent 55%),
+    linear-gradient(180deg, #fbfcfb 0%, var(--bg-bottom) 100%);
+}
