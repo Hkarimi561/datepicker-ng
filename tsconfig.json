@@ -2,7 +2,7 @@
   "compileOnSave": false,
   "compilerOptions": {
     "paths": {
-      "datepicker-ng": ["./src/public-api.ts"]
+      "@hamidrezz/datepicker-ng": ["./src/public-api.ts"]
     },
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,

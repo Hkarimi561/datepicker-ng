@@ -27,7 +27,7 @@ import {
   TimePickerType,
   toJalaliParts,
   WeekStart,
-} from 'datepicker-ng';
+} from '@hamidrezz/datepicker-ng';
 
 type ThemeMode = 'light' | 'dark';
 type SelectionMode = 'single' | 'range';
@@ -1125,11 +1125,11 @@ export class ShowcasePage {
   protected readonly installCommand = computed(() => {
     switch (this.packageManager()) {
       case 'pnpm':
-        return 'pnpm add datepicker-ng';
+        return 'pnpm add @hamidrezz/datepicker-ng';
       case 'yarn':
-        return 'yarn add datepicker-ng';
+        return 'yarn add @hamidrezz/datepicker-ng';
       default:
-        return 'npm install datepicker-ng';
+        return 'npm install @hamidrezz/datepicker-ng';
     }
   });
 
@@ -1287,7 +1287,7 @@ export class ShowcasePage {
 
   protected readonly quickStartCode = `import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { JalaliDatePicker } from 'datepicker-ng';
+import { JalaliDatePicker } from '@hamidrezz/datepicker-ng';
 
 @Component({
   selector: 'app-demo',

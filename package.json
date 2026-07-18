@@ -1,6 +1,9 @@
 {
-  "name": "datepicker-ng",
+  "name": "@hamidrezz/datepicker-ng",
   "version": "0.2.1",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Angular Jalali (Persian) datepicker styled with Tailwind CSS — RTL & LTR",
   "license": "MIT",
   "keywords": [

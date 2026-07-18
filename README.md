@@ -9,7 +9,7 @@ Angular Jalali (Persian / Shamsi) datepicker styled with **Tailwind CSS**. Suppo
 ## Install
 
 ```bash
-npm install datepicker-ng
+npm install @hamidrezz/datepicker-ng
 ```
 
 ### Peer dependencies
@@ -24,7 +24,7 @@ Your app must use **Tailwind CSS v4** (or v3 with content scanning) and include 
 
 ```css
 @import 'tailwindcss';
-@source '../node_modules/datepicker-ng/**/*.{mjs,js}';
+@source '../node_modules/@hamidrezz/datepicker-ng/**/*.{mjs,js}';
 ```
 
 **Tailwind v3** (`tailwind.config.js`):
@@ -33,7 +33,7 @@ Your app must use **Tailwind CSS v4** (or v3 with content scanning) and include 
 module.exports = {
   content: [
     './src/**/*.{html,ts}',
-    './node_modules/datepicker-ng/**/*.{mjs,js}',
+    './node_modules/@hamidrezz/datepicker-ng/**/*.{mjs,js}',
   ],
   // ...
 };
@@ -44,7 +44,7 @@ module.exports = {
 English labels apply automatically when `calendar="gregorian"` (unless you set `locale` / `translations`).
 
 ```ts
-import { DATEPICKER_LOCALE_EN, DatepickerLocale } from 'datepicker-ng';
+import { DATEPICKER_LOCALE_EN, DatepickerLocale } from '@hamidrezz/datepicker-ng';
 
 // Built-in
 <datepicker-ng calendar="gregorian" locale="en" />
@@ -92,7 +92,7 @@ Override CSS variables on a parent or `:root`:
 }
 ```
 
-Use `contrastingOnAccent(hex, 'light' | 'dark')` from `datepicker-ng` to pick a readable `--dp-on-accent` for any custom accent.
+Use `contrastingOnAccent(hex, 'light' | 'dark')` from `@hamidrezz/datepicker-ng` to pick a readable `--dp-on-accent` for any custom accent.
 
 ## Usage
 
@@ -101,7 +101,7 @@ Use `contrastingOnAccent(hex, 'light' | 'dark')` from `datepicker-ng` to pick a 
 ```ts
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { JalaliDatePicker } from 'datepicker-ng';
+import { JalaliDatePicker } from '@hamidrezz/datepicker-ng';
 
 @Component({
   selector: 'app-demo',
@@ -194,7 +194,7 @@ import {
   parseJalaliDateString,
   formatJalaliDisplay,
   formatTimeDisplay,
-} from 'datepicker-ng';
+} from '@hamidrezz/datepicker-ng';
 ```
 
 ## Showcase
@@ -224,7 +224,7 @@ In the repo: **Settings → Pages → Source: GitHub Actions**.
 
 Classic npm token types are gone. CI should use **Trusted Publishing** (OIDC), not a long-lived token.
 
-1. Open https://www.npmjs.com/package/datepicker-ng → **Settings** → **Trusted Publisher**
+1. Open https://www.npmjs.com/package/@hamidrezz/datepicker-ng → **Settings** → **Trusted Publisher**
 2. Choose **GitHub Actions** and set:
    - Organization or user: `Hkarimi561`
    - Repository: `datepicker-ng`
@@ -234,6 +234,8 @@ Classic npm token types are gone. CI should use **Trusted Publishing** (OIDC), n
 3. Save, then bump version and push (or re-run the workflow)
 
 No `NPM_TOKEN` is required for publish when Trusted Publishing is configured.
+
+> **Note:** The unscoped name `datepicker-ng` is blocked by npm (too similar to `date-picker-ng`). This package publishes as `@hamidrezz/datepicker-ng`.
 
 #### If you still use a granular token
 

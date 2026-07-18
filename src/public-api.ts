@@ -1,5 +1,5 @@
 /*
- * Public API Surface of datepicker-ng
+ * Public API Surface of @hamidrezz/datepicker-ng
  */
 
 export * from './lib/jalali-calendar';
