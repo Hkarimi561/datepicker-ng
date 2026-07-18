@@ -238,6 +238,75 @@ export const dpClasses = {
 
   buttonbarSpacer: 'flex-1',
 
+  timebar:
+    'dp-timebar flex flex-col items-center gap-3 border-t border-[var(--dp-border,#c8d2de)] px-4 py-4',
+
+  timebarFlat:
+    'dp-timebar flex flex-col items-center gap-3 px-4 py-4',
+
+  timePreview:
+    'font-mono text-2xl font-semibold tabular-nums tracking-wide text-[var(--dp-text,#142033)]',
+
+  timeFaceTabs: 'inline-flex rounded-lg border border-[var(--dp-border,#c8d2de)] p-0.5',
+
+  timeFaceTab: (active: boolean) =>
+    cx('rounded-md px-2.5 py-1 text-xs font-semibold transition', {
+      'bg-[var(--dp-accent,#0d7377)] text-[var(--dp-on-accent,#ffffff)]': active,
+      'bg-transparent text-[var(--dp-muted,#5a6a7e)] hover:bg-[var(--dp-hover,#eef2f6)]': !active,
+    }),
+
+  timeCol: 'flex flex-col items-center gap-0.5',
+
+  timeValue:
+    'min-w-[2.25rem] select-none text-center font-mono text-base font-semibold tabular-nums text-[var(--dp-text,#142033)]',
+
+  timeSpinBtn: cx(
+    'inline-flex size-7 items-center justify-center rounded-md border-0 bg-transparent text-[var(--dp-muted,#5a6a7e)]',
+    'hover:bg-[var(--dp-hover,#eef2f6)] disabled:opacity-40',
+    accent.ring,
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
+  ),
+
+  timeSep: 'select-none pb-5 text-base font-semibold text-[var(--dp-muted,#5a6a7e)]',
+
+  timeDigitalRow: 'flex flex-wrap items-center justify-center gap-2',
+
+  ampm: cx(
+    'ms-1 inline-flex flex-col gap-0.5 rounded-lg border border-[var(--dp-border,#c8d2de)] p-0.5',
+  ),
+
+  ampmBtn: (active: boolean) =>
+    cx(
+      'rounded-md px-2 py-1 text-xs font-semibold transition',
+      {
+        'bg-[var(--dp-accent,#0d7377)] text-[var(--dp-on-accent,#ffffff)]': active,
+        'bg-transparent text-[var(--dp-muted,#5a6a7e)] hover:bg-[var(--dp-hover,#eef2f6)]': !active,
+      },
+    ),
+
+  analogWrap: 'relative mx-auto size-[13.5rem] select-none',
+
+  analogSvg: 'size-full cursor-pointer touch-none',
+
+  analogFace:
+    'fill-[var(--dp-surface,#ffffff)] stroke-[var(--dp-border,#c8d2de)] stroke-[1.5]',
+
+  analogHand:
+    'stroke-[var(--dp-accent,#0d7377)] stroke-[2.5] stroke-linecap-round fill-none transition-transform duration-150 origin-center',
+
+  analogDot: 'fill-[var(--dp-accent,#0d7377)]',
+
+  analogMark:
+    'fill-[var(--dp-text,#142033)] text-[11px] font-semibold',
+
+  analogMarkActive: 'fill-[var(--dp-on-accent,#ffffff)]',
+
+  analogMarkBg: (active: boolean) =>
+    cx({
+      'fill-[var(--dp-accent,#0d7377)]': active,
+      'fill-transparent': !active,
+    }),
+
   primaryButton: cx(
     'rounded-lg border-0 px-3.5 py-2 text-sm font-medium text-[var(--dp-on-accent,#ffffff)]',
     accent.bg,

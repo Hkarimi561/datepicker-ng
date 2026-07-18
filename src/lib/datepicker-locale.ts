@@ -23,6 +23,20 @@ export interface DatepickerLocale {
   nextDecade?: string;
   pickDate?: string;
   pickRange?: string;
+  /** Time step title / aria. */
+  pickTime?: string;
+  /** Return from time step to the calendar. */
+  backToDate?: string;
+  /** 12-hour AM label. */
+  am?: string;
+  /** 12-hour PM label. */
+  pm?: string;
+  /** Accessible label for hour spinner. */
+  hour?: string;
+  /** Accessible label for minute spinner. */
+  minute?: string;
+  /** Accessible label for second spinner. */
+  second?: string;
   /** 12 month names (calendar-specific). */
   monthNames?: readonly string[];
   /** 7 weekday short labels, Sunday-first order. */
@@ -58,6 +72,13 @@ export type ResolvedDatepickerLocale = Required<
     | 'nextDecade'
     | 'pickDate'
     | 'pickRange'
+    | 'pickTime'
+    | 'backToDate'
+    | 'am'
+    | 'pm'
+    | 'hour'
+    | 'minute'
+    | 'second'
     | 'monthNames'
     | 'weekdaysMin'
     | 'weekdaysLong'
@@ -85,6 +106,13 @@ export const DATEPICKER_LOCALE_FA: ResolvedDatepickerLocale = {
   nextDecade: 'دهه بعد',
   pickDate: 'انتخاب تاریخ',
   pickRange: 'انتخاب بازه تاریخ',
+  pickTime: 'انتخاب ساعت',
+  backToDate: 'بازگشت به تقویم',
+  am: 'ق.ظ',
+  pm: 'ب.ظ',
+  hour: 'ساعت',
+  minute: 'دقیقه',
+  second: 'ثانیه',
   monthNames: [
     'فروردین',
     'اردیبهشت',
@@ -125,6 +153,13 @@ export const DATEPICKER_LOCALE_EN: ResolvedDatepickerLocale = {
   nextDecade: 'Next decade',
   pickDate: 'Select date',
   pickRange: 'Select date range',
+  pickTime: 'Select time',
+  backToDate: 'Back to calendar',
+  am: 'AM',
+  pm: 'PM',
+  hour: 'Hour',
+  minute: 'Minute',
+  second: 'Second',
   monthNames: [
     'January',
     'February',

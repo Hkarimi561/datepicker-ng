@@ -14,6 +14,7 @@ import {
   CalendarType,
   contrastingOnAccent,
   formatJalaliDisplay,
+  HourFormat,
   isJalaliDateParts,
   JalaliDateParts,
   JalaliDatePicker,
@@ -23,6 +24,7 @@ import {
   JalaliDatePickerValueFormat,
   parseRelativeDateString,
   RELATIVE_DATE_KEYWORDS,
+  TimePickerType,
   toJalaliParts,
   WeekStart,
 } from 'datepicker-ng';
@@ -45,6 +47,11 @@ interface PlaygroundSettings {
   autoCommit: boolean;
   showClear: boolean;
   showDateBanner: boolean;
+  showTime: boolean;
+  timeOnly: boolean;
+  timePickerType: TimePickerType;
+  hourFormat: HourFormat;
+  showSeconds: boolean;
   disabled: boolean;
   valueFormat: JalaliDatePickerValueFormat;
   inputCalendar: JalaliDatePickerInputCalendar;
@@ -93,6 +100,11 @@ function defaultSettings(): PlaygroundSettings {
     autoCommit: false,
     showClear: true,
     showDateBanner: true,
+    showTime: false,
+    timeOnly: false,
+    timePickerType: 'digital',
+    hourFormat: '24',
+    showSeconds: false,
     disabled: false,
     valueFormat: 'date',
     inputCalendar: 'jalali',
@@ -472,6 +484,11 @@ function mergeSettings(
                   [autoCommit]="settings().autoCommit"
                   [showClear]="settings().showClear"
                   [showDateBanner]="settings().showDateBanner"
+                  [showTime]="settings().showTime"
+                  [timeOnly]="settings().timeOnly"
+                  [timePickerType]="settings().timePickerType"
+                  [hourFormat]="settings().hourFormat"
+                  [showSeconds]="settings().showSeconds"
                   [disabled]="settings().disabled"
                   [valueFormat]="settings().valueFormat === 'custom' ? 'date' : settings().valueFormat"
                   [inputCalendar]="settings().inputCalendar"
@@ -636,6 +653,34 @@ function mergeSettings(
                     <option value="jalali-long">jalali-long</option>
                     <option value="jalali-slash">jalali-slash</option>
                     <option value="gregorian-slash">gregorian-slash</option>
+                  </select>
+                </label>
+
+                <label class="flex flex-col gap-1.5">
+                  <span style="color: var(--muted)">hourFormat</span>
+                  <select
+                    class="rounded-lg border px-2.5 py-2 outline-none"
+                    style="border-color: var(--line); background: var(--panel-2); color: var(--ink)"
+                    [ngModel]="settings().hourFormat"
+                    (ngModelChange)="patch({ hourFormat: $event })"
+                    [disabled]="!settings().showTime && !settings().timeOnly"
+                  >
+                    <option value="24">24</option>
+                    <option value="12">12</option>
+                  </select>
+                </label>
+
+                <label class="flex flex-col gap-1.5">
+                  <span style="color: var(--muted)">timePickerType</span>
+                  <select
+                    class="rounded-lg border px-2.5 py-2 outline-none"
+                    style="border-color: var(--line); background: var(--panel-2); color: var(--ink)"
+                    [ngModel]="settings().timePickerType"
+                    (ngModelChange)="patch({ timePickerType: $event })"
+                    [disabled]="!settings().showTime && !settings().timeOnly"
+                  >
+                    <option value="digital">digital</option>
+                    <option value="analog">analog</option>
                   </select>
                 </label>
 
@@ -900,6 +945,40 @@ function mergeSettings(
               </div>
             </article>
 
+            <!-- Date + time -->
+            <article class="recipe rounded-2xl border overflow-hidden" style="border-color: var(--line); background: var(--panel); box-shadow: var(--shadow)">
+              <div class="grid gap-0 lg:grid-cols-2">
+                <div class="border-b p-5 lg:border-b-0 lg:border-e" style="border-color: var(--line)" dir="rtl">
+                  <h3 class="m-0 mb-1 text-base font-semibold" style="color: var(--ink)">
+                    {{ pageDir() === 'rtl' ? 'تاریخ و ساعت' : 'Date + time' }}
+                  </h3>
+                  <p class="m-0 mb-4 text-sm" style="color: var(--muted)">
+                    showTime · timePickerType="analog"
+                  </p>
+                  <datepicker-ng
+                    showTime
+                    timePickerType="analog"
+                    hourFormat="24"
+                    placeholder="تاریخ و ساعت"
+                    [ngModel]="timeDate()"
+                    (ngModelChange)="onDateModelChange(timeDate, $event)"
+                  />
+                  <p class="m-0 mt-3 text-xs" style="color: var(--muted)">
+                    {{ pageDir() === 'rtl' ? 'تاریخ را بزنید، سپس ساعت را انتخاب کنید' : 'Pick a date, then choose the time' }}
+                    · {{ formatDate(timeDate()) }}
+                  </p>
+                </div>
+                <div class="p-4" style="background: var(--code-bg)">
+                  <div class="mb-2 flex justify-end">
+                    <button type="button" class="text-xs font-semibold" style="color: var(--accent)" (click)="copyCode(recipes[6].code, 'r6')">
+                      {{ copiedKey() === 'r6' ? '✓' : (pageDir() === 'rtl' ? 'کپی' : 'Copy') }}
+                    </button>
+                  </div>
+                  <pre class="font-mono m-0 overflow-x-auto text-[11px] leading-5" style="color: var(--code-ink)"><code>{{ recipes[6].code }}</code></pre>
+                </div>
+              </div>
+            </article>
+
             <!-- Jalali value -->
             <article class="recipe rounded-2xl border overflow-hidden" style="border-color: var(--line); background: var(--panel); box-shadow: var(--shadow)">
               <div class="grid gap-0 lg:grid-cols-2">
@@ -915,11 +994,11 @@ function mergeSettings(
                 </div>
                 <div class="p-4" style="background: var(--code-bg)">
                   <div class="mb-2 flex justify-end">
-                    <button type="button" class="text-xs font-semibold" style="color: var(--accent)" (click)="copyCode(recipes[6].code, 'r6')">
-                      {{ copiedKey() === 'r6' ? '✓' : (pageDir() === 'rtl' ? 'کپی' : 'Copy') }}
+                    <button type="button" class="text-xs font-semibold" style="color: var(--accent)" (click)="copyCode(recipes[7].code, 'r7')">
+                      {{ copiedKey() === 'r7' ? '✓' : (pageDir() === 'rtl' ? 'کپی' : 'Copy') }}
                     </button>
                   </div>
-                  <pre class="font-mono m-0 overflow-x-auto text-[11px] leading-5" style="color: var(--code-ink)"><code>{{ recipes[6].code }}</code></pre>
+                  <pre class="font-mono m-0 overflow-x-auto text-[11px] leading-5" style="color: var(--code-ink)"><code>{{ recipes[7].code }}</code></pre>
                 </div>
               </div>
             </article>
@@ -940,11 +1019,11 @@ function mergeSettings(
                 </div>
                 <div class="p-4" style="background: var(--code-bg)">
                   <div class="mb-2 flex justify-end">
-                    <button type="button" class="text-xs font-semibold" style="color: var(--accent)" (click)="copyCode(recipes[7].code, 'r7')">
-                      {{ copiedKey() === 'r7' ? '✓' : (pageDir() === 'rtl' ? 'کپی' : 'Copy') }}
+                    <button type="button" class="text-xs font-semibold" style="color: var(--accent)" (click)="copyCode(recipes[8].code, 'r8')">
+                      {{ copiedKey() === 'r8' ? '✓' : (pageDir() === 'rtl' ? 'کپی' : 'Copy') }}
                     </button>
                   </div>
-                  <pre class="font-mono m-0 overflow-x-auto text-[11px] leading-5" style="color: var(--code-ink)"><code>{{ recipes[7].code }}</code></pre>
+                  <pre class="font-mono m-0 overflow-x-auto text-[11px] leading-5" style="color: var(--code-ink)"><code>{{ recipes[8].code }}</code></pre>
                 </div>
               </div>
             </article>
@@ -1013,6 +1092,9 @@ export class ShowcasePage {
     { key: 'autoCommit' as const },
     { key: 'showClear' as const },
     { key: 'showDateBanner' as const },
+    { key: 'showTime' as const },
+    { key: 'timeOnly' as const },
+    { key: 'showSeconds' as const },
     { key: 'disabled' as const },
     { key: 'useBounds' as const },
   ];
@@ -1057,6 +1139,7 @@ export class ShowcasePage {
   protected readonly inlineDate = signal<Date | null>(new Date());
   protected readonly rangeDates = signal<Date[] | null>(null);
   protected readonly maskDate = signal<Date | null>(null);
+  protected readonly timeDate = signal<Date | null>(null);
   protected readonly jalaliParts = signal<JalaliDateParts | null>(null);
   protected readonly playgroundSingle = signal<Date | null>(null);
   protected readonly playgroundRange = signal<Date[] | null>(null);
@@ -1158,6 +1241,23 @@ export class ShowcasePage {
   placeholder="۱۴۰۴/۰۳/۱۵"
   [(ngModel)]="date"
 />`,
+    },
+    {
+      id: 'time',
+      title: 'Date + time',
+      titleEn: 'Date + time',
+      blurb: '',
+      code: `<datepicker-ng
+  showTime
+  timePickerType="digital"
+  hourFormat="24"
+  [(ngModel)]="date"
+/>
+
+// after picking a date → time step opens
+// analog: timePickerType="analog"
+// time only: timeOnly
+`,
     },
     {
       id: 'jalali',
@@ -1395,7 +1495,14 @@ export class DemoComponent {
     if (!value) {
       return '—';
     }
-    return formatJalaliDisplay(toJalaliParts(value), 'long');
+    const dateText = formatJalaliDisplay(toJalaliParts(value), 'long');
+    const hasTime =
+      value.getHours() !== 0 || value.getMinutes() !== 0 || value.getSeconds() !== 0;
+    if (!hasTime) {
+      return dateText;
+    }
+    const time = `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
+    return `${dateText} ${time}`;
   }
 
   protected formatGregorian(value: Date | null | undefined): string {
@@ -1444,6 +1551,23 @@ export class DemoComponent {
     }
     if (!s.showDateBanner) {
       lines.push(`  [showDateBanner]="false"`);
+    }
+    if (s.showTime) {
+      lines.push(`  showTime`);
+    }
+    if (s.timeOnly) {
+      lines.push(`  timeOnly`);
+    }
+    if (s.showTime || s.timeOnly) {
+      if (s.timePickerType !== 'digital') {
+        lines.push(`  timePickerType="${s.timePickerType}"`);
+      }
+      if (s.hourFormat !== '24') {
+        lines.push(`  hourFormat="${s.hourFormat}"`);
+      }
+      if (s.showSeconds) {
+        lines.push(`  showSeconds`);
+      }
     }
     if (s.disabled) {
       lines.push(`  [disabled]="true"`);

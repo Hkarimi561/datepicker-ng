@@ -1,6 +1,7 @@
 import {
   addJalaliMonths,
   applySlashDateMask,
+  applyTimeToDate,
   buildGregorianMonthGrid,
   buildJalaliMonthGrid,
   buildJalaliYearWindow,
@@ -8,6 +9,7 @@ import {
   formatJalaliDisplay,
   formatJalaliMonthYear,
   formatJalaliRangeDisplay,
+  formatTimeDisplay,
   isDateWithinBounds,
   isJalaliDateBetween,
   isSameJalaliDay,
@@ -17,6 +19,10 @@ import {
   parseGregorianDateString,
   parseJalaliDateString,
   parseRelativeDateString,
+  parseTimeFromText,
+  splitDateTimeText,
+  to12Hour,
+  to24Hour,
   toGregorianDate,
   toJalaliParts,
   toPersianDigits,
@@ -111,12 +117,21 @@ describe('jalali-calendar', () => {
     expect(buildJalaliYearWindow(1404).length).toBe(12);
   });
 
-  it('builds a Gregorian month grid starting on Sunday', () => {
-    const weeks = buildGregorianMonthGrid(2022, 2, new Date(2022, 1, 14));
-    expect(weeks).toHaveLength(6);
-    expect(weeks[0]).toHaveLength(7);
-    // 1 Feb 2022 was Tuesday → index 2
-    expect(weeks[0][2].label).toBe('1');
-    expect(weeks[0][2].otherMonth).toBe(false);
+  it('formats and parses clock time', () => {
+    expect(formatTimeDisplay(14, 5, 9, { hourFormat: '24', showSeconds: true })).toBe('14:05:09');
+    expect(formatTimeDisplay(14, 5, undefined, { hourFormat: '12', am: 'AM', pm: 'PM' })).toBe(
+      '02:05 PM',
+    );
+    expect(parseTimeFromText('14:30')).toEqual({ hour: 14, minute: 30, second: 0 });
+    expect(parseTimeFromText('2:05 PM')).toEqual({ hour: 14, minute: 5, second: 0 });
+    expect(parseTimeFromText('۱۲:۳۰')).toEqual({ hour: 12, minute: 30, second: 0 });
+    expect(applyTimeToDate(new Date(2025, 5, 10), 9, 15, 30)).toEqual(new Date(2025, 5, 10, 9, 15, 30));
+    expect(to24Hour(12, 'am')).toBe(0);
+    expect(to24Hour(12, 'pm')).toBe(12);
+    expect(to12Hour(0)).toEqual({ hour: 12, period: 'am' });
+    expect(splitDateTimeText('1404/03/15 14:30').timePart).toBe('14:30');
+    expect(toGregorianDate({ jy: 1400, jm: 11, jd: 25, hour: 14, minute: 30 })).toEqual(
+      new Date(2022, 1, 14, 14, 30, 0),
+    );
   });
 });

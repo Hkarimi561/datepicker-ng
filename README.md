@@ -117,6 +117,30 @@ export class DemoComponent {
 }
 ```
 
+### Date + time
+
+```html
+<!-- After choosing a date, the panel switches to the time picker -->
+<datepicker-ng showTime timePickerType="digital" [(ngModel)]="date" />
+
+<!-- Analog clock face -->
+<datepicker-ng showTime timePickerType="analog" hourFormat="12" [(ngModel)]="date" />
+
+<!-- Time only (no calendar) -->
+<datepicker-ng timeOnly timePickerType="digital" [(ngModel)]="date" />
+
+<!-- include seconds -->
+<datepicker-ng showTime showSeconds [(ngModel)]="date" />
+```
+
+| Input | Description |
+| --- | --- |
+| `showTime` | After a date is selected, show the time step |
+| `timeOnly` | Time picker only (no calendar) |
+| `timePickerType` | `'digital'` (default) \| `'analog'` |
+| `hourFormat` | `'24'` (default) \| `'12'` |
+| `showSeconds` | Include seconds |
+
 ### Range selection
 
 ```html
@@ -142,6 +166,11 @@ export class DemoComponent {
 | `inputCalendar` | `'jalali'` \| `'gregorian'` for typed input |
 | `displayFormat` | e.g. `'jalali-short'`, `'jalali-slash'`, `'gregorian-slash'` |
 | `showClear` | Show clear icon |
+| `showTime` | After date pick, open the time step |
+| `timeOnly` | Time picker only (no calendar) |
+| `timePickerType` | `'digital'` \| `'analog'` |
+| `hourFormat` | `'24'` (default) \| `'12'` |
+| `showSeconds` | Include seconds when time is enabled |
 | `autoCommit` | Commit selection immediately |
 | `styleClass` | Extra classes on the root |
 
@@ -159,9 +188,12 @@ import {
   JalaliDatePickerClasses,
   // calendar helpers
   toJalaliParts,
+  toJalaliDateTimeParts,
   toGregorianDate,
+  applyTimeToDate,
   parseJalaliDateString,
   formatJalaliDisplay,
+  formatTimeDisplay,
 } from 'datepicker-ng';
 ```
 
@@ -181,7 +213,12 @@ npm run build:showcase
 ## CI / Publish
 
 - **CI** (`.github/workflows/ci.yml`) — on push/PR to `main`: install, test, build library, build showcase.
+- **Pages** (`.github/workflows/pages.yml`) — on push to `main`: build showcase and deploy to GitHub Pages.
 - **Publish** (`.github/workflows/publish.yml`) — on GitHub Release (or manual dispatch): test, build, `npm publish` with provenance.
+
+Live demo: [Hkarimi561.github.io/datepicker-ng](https://Hkarimi561.github.io/datepicker-ng/)
+
+In the repo: **Settings → Pages → Source: GitHub Actions**.
 
 Add a repository secret named `NPM_TOKEN` (npm automation token) before publishing.
 

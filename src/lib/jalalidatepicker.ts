@@ -13,18 +13,20 @@ import {
   viewChild,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { LucideCalendar, LucideChevronLeft, LucideChevronRight, LucideX } from '@lucide/angular';
+import { LucideCalendar, LucideChevronDown, LucideChevronLeft, LucideChevronRight, LucideChevronUp, LucideX } from '@lucide/angular';
 import {
   addGregorianMonths,
   addGregorianYears,
   addJalaliMonths,
   addJalaliYears,
   applySlashDateMask,
+  applyTimeToDate,
   buildGregorianMonthGrid,
   buildGregorianYearWindow,
   buildJalaliMonthGrid,
   buildJalaliYearWindow,
   CalendarType,
+  compareJalaliDay,
   formatGregorianDisplay,
   formatGregorianMonthYear,
   formatGregorianRangeDisplay,
@@ -33,6 +35,8 @@ import {
   formatJalaliMonthYear,
   formatJalaliRangeDisplay,
   formatJalaliSlash,
+  formatTimeDisplay,
+  HourFormat,
   isDateWithinBounds,
   isJalaliDateBetween,
   isJalaliDateParts,
@@ -40,13 +44,21 @@ import {
   isSameJalaliDay,
   JalaliDateParts,
   JalaliDayCell,
+  Meridiem,
   normalizeJalaliRange,
+  pad2,
   parseGregorianDateString,
   parseJalaliDateString,
+  parseTimeFromText,
+  splitDateTimeText,
+  to12Hour,
+  to24Hour,
   toGregorianDate,
   toGregorianParts,
+  toJalaliDateTimeParts,
   toJalaliParts,
   toPersianDigits,
+  wrapUnit,
 } from './jalali-calendar';
 import {
   DatepickerLocale,
@@ -89,8 +101,11 @@ export type JalaliDatePickerFormatValue = (date: Date | Date[]) => unknown;
 
 export type { CalendarType };
 export type { DatepickerLocale, DatepickerLocaleInput, WeekStart };
+export type { HourFormat, Meridiem };
 
-type CalendarPanelView = 'date' | 'month' | 'year';
+type CalendarPanelView = 'date' | 'month' | 'year' | 'time';
+type AnalogFace = 'hour' | 'minute' | 'second';
+export type TimePickerType = 'digital' | 'analog';
 
 const JALALI_DATEPICKER_VALUE_ACCESSOR = {
   provide: NG_VALUE_ACCESSOR,
@@ -107,7 +122,14 @@ const JALALI_DATEPICKER_VALUE_ACCESSOR = {
 @Component({
   selector: 'datepicker-ng',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [LucideX, LucideCalendar, LucideChevronLeft, LucideChevronRight],
+  imports: [
+    LucideX,
+    LucideCalendar,
+    LucideChevronLeft,
+    LucideChevronRight,
+    LucideChevronUp,
+    LucideChevronDown,
+  ],
   providers: [JALALI_DATEPICKER_VALUE_ACCESSOR],
   host: {
     '[class]': 'rootClass()',
@@ -182,128 +204,329 @@ const JALALI_DATEPICKER_VALUE_ACCESSOR = {
           </div>
         }
 
-        <div [class]="dp.calendarContainer">
-          <div [class]="dp.calendar">
-            <div [class]="dp.header">
+        @if (isTimeView()) {
+          <div [class]="timeOnly() ? dp.timebarFlat : dp.timebar" role="group" [attr.aria-label]="t().pickTime">
+            @if (!timeOnly()) {
               <button
                 type="button"
-                [class]="dp.navButton"
-                [attr.aria-label]="prevLabel()"
+                [class]="dp.linkButton"
                 [disabled]="disabled()"
-                (click)="onPrev()"
+                (click)="backToCalendar()"
               >
-                @if (isRtl()) {
-                  <svg lucideChevronRight [size]="14" aria-hidden="true"></svg>
-                } @else {
-                  <svg lucideChevronLeft [size]="14" aria-hidden="true"></svg>
-                }
+                {{ t().backToDate }}
               </button>
+            }
 
-              <div [class]="dp.title">
-                @if (panelView() === 'date') {
+            <div [class]="dp.timePreview">{{ pendingTimeLabel() }}</div>
+
+            @if (timePickerType() === 'analog') {
+              <div [class]="dp.timeFaceTabs" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  [class]="dp.timeFaceTab(analogFace() === 'hour')"
+                  [attr.aria-selected]="analogFace() === 'hour'"
+                  (click)="setAnalogFace('hour')"
+                >
+                  {{ t().hour }}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  [class]="dp.timeFaceTab(analogFace() === 'minute')"
+                  [attr.aria-selected]="analogFace() === 'minute'"
+                  (click)="setAnalogFace('minute')"
+                >
+                  {{ t().minute }}
+                </button>
+                @if (showSeconds()) {
                   <button
                     type="button"
-                    [class]="dp.selectMonth"
-                    [disabled]="disabled()"
-                    (click)="openMonthView()"
+                    role="tab"
+                    [class]="dp.timeFaceTab(analogFace() === 'second')"
+                    [attr.aria-selected]="analogFace() === 'second'"
+                    (click)="setAnalogFace('second')"
                   >
-                    {{ monthYearLabel() }}
+                    {{ t().second }}
                   </button>
-                } @else if (panelView() === 'month') {
-                  <button
-                    type="button"
-                    [class]="dp.selectYear"
-                    [disabled]="disabled()"
-                    (click)="openYearView()"
-                  >
-                    {{ yearTitle() }}
-                  </button>
-                } @else {
-                  <span [class]="dp.selectYear">{{ decadeLabel() }}</span>
                 }
               </div>
 
-              <button
-                type="button"
-                [class]="dp.navButton"
-                [attr.aria-label]="nextLabel()"
-                [disabled]="disabled()"
-                (click)="onNext()"
-              >
-                @if (isRtl()) {
-                  <svg lucideChevronLeft [size]="14" aria-hidden="true"></svg>
-                } @else {
-                  <svg lucideChevronRight [size]="14" aria-hidden="true"></svg>
-                }
-              </button>
-            </div>
-
-            @if (panelView() === 'date') {
-              <table [class]="dp.dayView" role="grid" [attr.aria-label]="monthYearLabel()">
-                <thead>
-                  <tr>
-                    @for (day of weekdays(); track day; let i = $index) {
-                      <th [class]="dp.weekDayCell">
-                        <span [class]="dp.weekDay(isWeekendColumn(i))">{{ day }}</span>
-                      </th>
-                    }
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (week of weeks(); track $index) {
-                    <tr>
-                      @for (cell of week; track cell.parts.jy + '-' + cell.parts.jm + '-' + cell.parts.jd) {
-                        <td [class]="dayCellClass(cell)">
-                          <span
-                            role="gridcell"
-                            [attr.tabindex]="isFocusedDay(cell.parts) ? 0 : -1"
-                            [attr.aria-selected]="isDaySelected(cell.parts)"
-                            [attr.aria-disabled]="isDayDisabled(cell.parts) || null"
-                            [attr.aria-current]="cell.today ? 'date' : null"
-                            [attr.aria-label]="dayAriaLabel(cell)"
-                            [class]="dayClass(cell)"
-                            (click)="selectDay(cell)"
-                            (keydown)="onDayKeydown($event, cell)"
-                          >
-                            {{ cell.label }}
-                          </span>
-                        </td>
-                      }
-                    </tr>
+              <div [class]="dp.analogWrap">
+                <svg
+                  [class]="dp.analogSvg"
+                  viewBox="0 0 200 200"
+                  (pointerdown)="onAnalogPointerDown($event)"
+                  (pointermove)="onAnalogPointerMove($event)"
+                  (pointerup)="onAnalogPointerUp($event)"
+                  (pointerleave)="onAnalogPointerUp($event)"
+                >
+                  <circle cx="100" cy="100" r="96" [attr.class]="dp.analogFace" />
+                  @for (mark of analogMarks(); track mark.value) {
+                    <circle
+                      [attr.cx]="mark.x"
+                      [attr.cy]="mark.y"
+                      r="14"
+                      [attr.class]="dp.analogMarkBg(mark.active)"
+                    />
+                    <text
+                      [attr.x]="mark.x"
+                      [attr.y]="mark.y"
+                      text-anchor="middle"
+                      dominant-baseline="central"
+                      [attr.class]="mark.active ? dp.analogMarkActive : dp.analogMark"
+                      [attr.fill]="mark.active ? 'var(--dp-on-accent, #ffffff)' : 'var(--dp-text, #142033)'"
+                    >
+                      {{ mark.label }}
+                    </text>
                   }
-                </tbody>
-              </table>
-            } @else if (panelView() === 'month') {
-              <div [class]="dp.monthView" role="grid">
-                @for (month of monthNames(); track month; let i = $index) {
-                  <span
-                    role="gridcell"
-                    tabindex="0"
-                    [class]="monthClass(i + 1)"
-                    (click)="selectMonth(i + 1)"
-                    (keydown)="onMonthKeydown($event, i + 1)"
-                  >
-                    {{ month }}
-                  </span>
-                }
+                  <line
+                    x1="100"
+                    y1="100"
+                    [attr.x2]="analogHand().x"
+                    [attr.y2]="analogHand().y"
+                    [attr.class]="dp.analogHand"
+                  />
+                  <circle cx="100" cy="100" r="4" [attr.class]="dp.analogDot" />
+                </svg>
               </div>
-            } @else {
-              <div [class]="dp.yearView" role="grid">
-                @for (year of yearWindow(); track year) {
-                  <span
-                    role="gridcell"
-                    tabindex="0"
-                    [class]="yearClass(year)"
-                    (click)="selectYear(year)"
-                    (keydown)="onYearKeydown($event, year)"
+
+              @if (hourFormat() === '12' && analogFace() === 'hour') {
+                <div [class]="dp.ampm" role="group">
+                  <button
+                    type="button"
+                    [class]="dp.ampmBtn(pendingPeriod() === 'am')"
+                    [disabled]="disabled()"
+                    (click)="setPeriod('am')"
                   >
-                    {{ formatYearLabel(year) }}
-                  </span>
+                    {{ t().am }}
+                  </button>
+                  <button
+                    type="button"
+                    [class]="dp.ampmBtn(pendingPeriod() === 'pm')"
+                    [disabled]="disabled()"
+                    (click)="setPeriod('pm')"
+                  >
+                    {{ t().pm }}
+                  </button>
+                </div>
+              }
+            } @else {
+              <div [class]="dp.timeDigitalRow">
+                <div [class]="dp.timeCol">
+                  <button
+                    type="button"
+                    [class]="dp.timeSpinBtn"
+                    [disabled]="disabled()"
+                    [attr.aria-label]="t().hour"
+                    (click)="bumpHour(1)"
+                  >
+                    <svg lucideChevronUp [size]="14" aria-hidden="true"></svg>
+                  </button>
+                  <span [class]="dp.timeValue">{{ displayHourLabel() }}</span>
+                  <button
+                    type="button"
+                    [class]="dp.timeSpinBtn"
+                    [disabled]="disabled()"
+                    [attr.aria-label]="t().hour"
+                    (click)="bumpHour(-1)"
+                  >
+                    <svg lucideChevronDown [size]="14" aria-hidden="true"></svg>
+                  </button>
+                </div>
+                <span [class]="dp.timeSep" aria-hidden="true">:</span>
+                <div [class]="dp.timeCol">
+                  <button
+                    type="button"
+                    [class]="dp.timeSpinBtn"
+                    [disabled]="disabled()"
+                    [attr.aria-label]="t().minute"
+                    (click)="bumpMinute(1)"
+                  >
+                    <svg lucideChevronUp [size]="14" aria-hidden="true"></svg>
+                  </button>
+                  <span [class]="dp.timeValue">{{ displayMinuteLabel() }}</span>
+                  <button
+                    type="button"
+                    [class]="dp.timeSpinBtn"
+                    [disabled]="disabled()"
+                    [attr.aria-label]="t().minute"
+                    (click)="bumpMinute(-1)"
+                  >
+                    <svg lucideChevronDown [size]="14" aria-hidden="true"></svg>
+                  </button>
+                </div>
+                @if (showSeconds()) {
+                  <span [class]="dp.timeSep" aria-hidden="true">:</span>
+                  <div [class]="dp.timeCol">
+                    <button
+                      type="button"
+                      [class]="dp.timeSpinBtn"
+                      [disabled]="disabled()"
+                      [attr.aria-label]="t().second"
+                      (click)="bumpSecond(1)"
+                    >
+                      <svg lucideChevronUp [size]="14" aria-hidden="true"></svg>
+                    </button>
+                    <span [class]="dp.timeValue">{{ displaySecondLabel() }}</span>
+                    <button
+                      type="button"
+                      [class]="dp.timeSpinBtn"
+                      [disabled]="disabled()"
+                      [attr.aria-label]="t().second"
+                      (click)="bumpSecond(-1)"
+                    >
+                      <svg lucideChevronDown [size]="14" aria-hidden="true"></svg>
+                    </button>
+                  </div>
+                }
+                @if (hourFormat() === '12') {
+                  <div [class]="dp.ampm" role="group">
+                    <button
+                      type="button"
+                      [class]="dp.ampmBtn(pendingPeriod() === 'am')"
+                      [disabled]="disabled()"
+                      (click)="setPeriod('am')"
+                    >
+                      {{ t().am }}
+                    </button>
+                    <button
+                      type="button"
+                      [class]="dp.ampmBtn(pendingPeriod() === 'pm')"
+                      [disabled]="disabled()"
+                      (click)="setPeriod('pm')"
+                    >
+                      {{ t().pm }}
+                    </button>
+                  </div>
                 }
               </div>
             }
           </div>
-        </div>
+        } @else {
+          <div [class]="dp.calendarContainer">
+            <div [class]="dp.calendar">
+              <div [class]="dp.header">
+                <button
+                  type="button"
+                  [class]="dp.navButton"
+                  [attr.aria-label]="prevLabel()"
+                  [disabled]="disabled()"
+                  (click)="onPrev()"
+                >
+                  @if (isRtl()) {
+                    <svg lucideChevronRight [size]="14" aria-hidden="true"></svg>
+                  } @else {
+                    <svg lucideChevronLeft [size]="14" aria-hidden="true"></svg>
+                  }
+                </button>
+
+                <div [class]="dp.title">
+                  @if (panelView() === 'date') {
+                    <button
+                      type="button"
+                      [class]="dp.selectMonth"
+                      [disabled]="disabled()"
+                      (click)="openMonthView()"
+                    >
+                      {{ monthYearLabel() }}
+                    </button>
+                  } @else if (panelView() === 'month') {
+                    <button
+                      type="button"
+                      [class]="dp.selectYear"
+                      [disabled]="disabled()"
+                      (click)="openYearView()"
+                    >
+                      {{ yearTitle() }}
+                    </button>
+                  } @else {
+                    <span [class]="dp.selectYear">{{ decadeLabel() }}</span>
+                  }
+                </div>
+
+                <button
+                  type="button"
+                  [class]="dp.navButton"
+                  [attr.aria-label]="nextLabel()"
+                  [disabled]="disabled()"
+                  (click)="onNext()"
+                >
+                  @if (isRtl()) {
+                    <svg lucideChevronLeft [size]="14" aria-hidden="true"></svg>
+                  } @else {
+                    <svg lucideChevronRight [size]="14" aria-hidden="true"></svg>
+                  }
+                </button>
+              </div>
+
+              @if (panelView() === 'date') {
+                <table [class]="dp.dayView" role="grid" [attr.aria-label]="monthYearLabel()">
+                  <thead>
+                    <tr>
+                      @for (day of weekdays(); track day; let i = $index) {
+                        <th [class]="dp.weekDayCell">
+                          <span [class]="dp.weekDay(isWeekendColumn(i))">{{ day }}</span>
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (week of weeks(); track $index) {
+                      <tr>
+                        @for (cell of week; track cell.parts.jy + '-' + cell.parts.jm + '-' + cell.parts.jd) {
+                          <td [class]="dayCellClass(cell)">
+                            <span
+                              role="gridcell"
+                              [attr.tabindex]="isFocusedDay(cell.parts) ? 0 : -1"
+                              [attr.aria-selected]="isDaySelected(cell.parts)"
+                              [attr.aria-disabled]="isDayDisabled(cell.parts) || null"
+                              [attr.aria-current]="cell.today ? 'date' : null"
+                              [attr.aria-label]="dayAriaLabel(cell)"
+                              [class]="dayClass(cell)"
+                              (click)="selectDay(cell)"
+                              (keydown)="onDayKeydown($event, cell)"
+                            >
+                              {{ cell.label }}
+                            </span>
+                          </td>
+                        }
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              } @else if (panelView() === 'month') {
+                <div [class]="dp.monthView" role="grid">
+                  @for (month of monthNames(); track month; let i = $index) {
+                    <span
+                      role="gridcell"
+                      tabindex="0"
+                      [class]="monthClass(i + 1)"
+                      (click)="selectMonth(i + 1)"
+                      (keydown)="onMonthKeydown($event, i + 1)"
+                    >
+                      {{ month }}
+                    </span>
+                  }
+                </div>
+              } @else {
+                <div [class]="dp.yearView" role="grid">
+                  @for (year of yearWindow(); track year) {
+                    <span
+                      role="gridcell"
+                      tabindex="0"
+                      [class]="yearClass(year)"
+                      (click)="selectYear(year)"
+                      (keydown)="onYearKeydown($event, year)"
+                    >
+                      {{ formatYearLabel(year) }}
+                    </span>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
 
         <div [class]="dp.buttonbar">
           @if (!autoCommit()) {
@@ -335,14 +558,16 @@ const JALALI_DATEPICKER_VALUE_ACCESSOR = {
             </button>
           }
           <span [class]="dp.buttonbarSpacer" aria-hidden="true"></span>
-          <button
-            type="button"
-            [class]="dp.linkButton"
-            [disabled]="disabled() || isDayDisabled(todayParts())"
-            (click)="goToday()"
-          >
-            {{ resolvedTodayLabel() }}
-          </button>
+          @if (!isTimeView()) {
+            <button
+              type="button"
+              [class]="dp.linkButton"
+              [disabled]="disabled() || isDayDisabled(todayParts())"
+              (click)="goToday()"
+            >
+              {{ resolvedTodayLabel() }}
+            </button>
+          }
         </div>
       </div>
     }
@@ -399,6 +624,16 @@ export class JalaliDatePicker implements ControlValueAccessor {
   readonly parseValue = input<JalaliDatePickerParseValue | undefined>(undefined);
   readonly formatValue = input<JalaliDatePickerFormatValue | undefined>(undefined);
   readonly showDateBanner = input(true, { transform: booleanAttribute });
+  /** Show time picker after a date is chosen (or with `timeOnly`). */
+  readonly showTime = input(false, { transform: booleanAttribute });
+  /** Only the time picker — no calendar grid. */
+  readonly timeOnly = input(false, { transform: booleanAttribute });
+  /** Digital spinners (default) or analog clock face. */
+  readonly timePickerType = input<TimePickerType>('digital');
+  /** `24` (default) or `12` with AM/PM. */
+  readonly hourFormat = input<HourFormat>('24');
+  /** Include seconds in the time picker and display. */
+  readonly showSeconds = input(false, { transform: booleanAttribute });
   readonly selectLabel = input<string | undefined>(undefined);
   readonly cancelLabel = input<string | undefined>(undefined);
   readonly todayLabel = input<string | undefined>(undefined);
@@ -427,6 +662,14 @@ export class JalaliDatePicker implements ControlValueAccessor {
   protected readonly panelView = signal<CalendarPanelView>('date');
   protected readonly overlayVisible = signal(false);
 
+  private readonly now = new Date();
+  protected readonly pendingHour = signal(this.now.getHours());
+  protected readonly pendingMinute = signal(this.now.getMinutes());
+  protected readonly pendingSecond = signal(this.now.getSeconds());
+  protected readonly pendingPeriod = signal<Meridiem>(this.now.getHours() >= 12 ? 'pm' : 'am');
+  protected readonly analogFace = signal<AnalogFace>('hour');
+  private analogDragging = false;
+
   private onChange: (value: JalaliDatePickerValue) => void = () => undefined;
   private onTouched: () => void = () => undefined;
   private cvaDisabled = false;
@@ -435,6 +678,11 @@ export class JalaliDatePicker implements ControlValueAccessor {
   protected readonly isRtl = computed(() => this.dir() === 'rtl');
   protected readonly isGregorianCalendar = computed(() => this.calendar() === 'gregorian');
   protected readonly todayParts = computed(() => toJalaliParts(new Date()));
+  /** Time is part of the value when `showTime` or `timeOnly` is on. */
+  protected readonly timeEnabled = computed(() => this.showTime() || this.timeOnly());
+  protected readonly isTimeView = computed(
+    () => this.timeOnly() || this.panelView() === 'time',
+  );
 
   protected readonly t = computed(() =>
     resolveDatepickerLocale(this.calendar(), this.locale(), this.translations()),
@@ -524,6 +772,117 @@ export class JalaliDatePicker implements ControlValueAccessor {
 
   protected readonly inputText = computed(() => this.draftText() ?? this.formattedCommitted());
 
+  protected readonly displayHourLabel = computed(() => {
+    const digits = this.t().digits;
+    const hour24 = this.pendingHour();
+    const value = this.hourFormat() === '12' ? to12Hour(hour24).hour : hour24;
+    const padded = pad2(value);
+    return digits === 'persian' ? toPersianDigits(padded) : padded;
+  });
+
+  protected readonly displayMinuteLabel = computed(() => {
+    const padded = pad2(this.pendingMinute());
+    return this.t().digits === 'persian' ? toPersianDigits(padded) : padded;
+  });
+
+  protected readonly displaySecondLabel = computed(() => {
+    const padded = pad2(this.pendingSecond());
+    return this.t().digits === 'persian' ? toPersianDigits(padded) : padded;
+  });
+
+  protected readonly pendingTimeLabel = computed(() => {
+    const loc = this.t();
+    return formatTimeDisplay(
+      this.pendingHour(),
+      this.pendingMinute(),
+      this.pendingSecond(),
+      {
+        hourFormat: this.hourFormat(),
+        showSeconds: this.showSeconds(),
+        digits: loc.digits,
+        am: loc.am,
+        pm: loc.pm,
+      },
+    );
+  });
+
+  protected readonly analogMarks = computed(() => {
+    const face = this.analogFace();
+    const digits = this.t().digits;
+    const cx = 100;
+    const cy = 100;
+    const marks: Array<{ value: number; label: string; x: number; y: number; active: boolean }> =
+      [];
+
+    if (face === 'hour') {
+      if (this.hourFormat() === '24') {
+        for (let h = 0; h < 24; h += 1) {
+          const ring = h < 12 ? 58 : 78;
+          const idx = h % 12;
+          const angle = ((idx / 12) * Math.PI * 2) - Math.PI / 2;
+          const x = cx + ring * Math.cos(angle);
+          const y = cy + ring * Math.sin(angle);
+          const label = digits === 'persian' ? toPersianDigits(pad2(h)) : pad2(h);
+          marks.push({ value: h, label, x, y, active: this.pendingHour() === h });
+        }
+      } else {
+        for (let h = 1; h <= 12; h += 1) {
+          const angle = ((h % 12) / 12) * Math.PI * 2 - Math.PI / 2;
+          const x = cx + 70 * Math.cos(angle);
+          const y = cy + 70 * Math.sin(angle);
+          const label = digits === 'persian' ? toPersianDigits(String(h)) : String(h);
+          const display = to12Hour(this.pendingHour()).hour;
+          marks.push({ value: h, label, x, y, active: display === h });
+        }
+      }
+      return marks;
+    }
+
+    const step = 5;
+    const current = face === 'minute' ? this.pendingMinute() : this.pendingSecond();
+    for (let v = 0; v < 60; v += step) {
+      const angle = (v / 60) * Math.PI * 2 - Math.PI / 2;
+      const x = cx + 70 * Math.cos(angle);
+      const y = cy + 70 * Math.sin(angle);
+      const label = digits === 'persian' ? toPersianDigits(pad2(v)) : pad2(v);
+      marks.push({
+        value: v,
+        label,
+        x,
+        y,
+        active: Math.floor(current / step) * step === v,
+      });
+    }
+    return marks;
+  });
+
+  protected readonly analogHand = computed(() => {
+    const face = this.analogFace();
+    let unit: number;
+    let total: number;
+    if (face === 'hour') {
+      if (this.hourFormat() === '24') {
+        unit = this.pendingHour() % 12;
+        total = 12;
+      } else {
+        unit = to12Hour(this.pendingHour()).hour % 12;
+        total = 12;
+      }
+    } else if (face === 'minute') {
+      unit = this.pendingMinute();
+      total = 60;
+    } else {
+      unit = this.pendingSecond();
+      total = 60;
+    }
+    const angle = (unit / total) * Math.PI * 2 - Math.PI / 2;
+    const len = face === 'hour' && this.hourFormat() === '24' && this.pendingHour() >= 12 ? 62 : 55;
+    return {
+      x: 100 + len * Math.cos(angle),
+      y: 100 + len * Math.sin(angle),
+    };
+  });
+
   protected readonly bannerContent = computed(() => {
     const start = this.pendingStart();
     if (!start) {
@@ -595,10 +954,16 @@ export class JalaliDatePicker implements ControlValueAccessor {
   });
 
   protected readonly showSelectionBanner = computed(
-    () => this.showDateBanner() && !!this.pendingStart() && this.panelView() === 'date',
+    () =>
+      this.showDateBanner() &&
+      !!this.pendingStart() &&
+      (this.panelView() === 'date' || this.isTimeView()),
   );
 
   protected readonly canConfirm = computed(() => {
+    if (this.timeOnly()) {
+      return true;
+    }
     if (!this.pendingStart()) {
       return false;
     }
@@ -675,10 +1040,18 @@ export class JalaliDatePicker implements ControlValueAccessor {
 
   protected show(): void {
     this.syncPendingFromCommitted(this.committedDates());
-    if (!this.pendingStart()) {
-      this.viewParts.set(this.todayParts());
+    if (this.timeOnly()) {
+      if (!this.pendingStart()) {
+        this.pendingStart.set(this.todayParts());
+      }
+      this.analogFace.set('hour');
+      this.panelView.set('time');
+    } else {
+      if (!this.pendingStart()) {
+        this.viewParts.set(this.todayParts());
+      }
+      this.panelView.set('date');
     }
-    this.panelView.set('date');
     this.overlayVisible.set(true);
     this.onShow.emit();
   }
@@ -807,6 +1180,7 @@ export class JalaliDatePicker implements ControlValueAccessor {
     }
 
     this.focusedParts.set(cell.parts);
+    let readyForTime = false;
 
     if (this.isRange()) {
       const start = this.pendingStart();
@@ -817,7 +1191,8 @@ export class JalaliDatePicker implements ControlValueAccessor {
         this.pendingEnd.set(null);
       } else {
         this.pendingEnd.set(cell.parts);
-        if (this.autoCommit()) {
+        readyForTime = true;
+        if (!this.timeEnabled() && this.autoCommit()) {
           this.confirm();
           return;
         }
@@ -825,7 +1200,8 @@ export class JalaliDatePicker implements ControlValueAccessor {
     } else {
       this.pendingStart.set(cell.parts);
       this.pendingEnd.set(null);
-      if (this.autoCommit()) {
+      readyForTime = true;
+      if (!this.timeEnabled() && this.autoCommit()) {
         this.confirm();
         return;
       }
@@ -839,24 +1215,118 @@ export class JalaliDatePicker implements ControlValueAccessor {
         this.viewParts.set({ jy: cell.parts.jy, jm: cell.parts.jm, jd: 1 });
       }
     }
+
+    if (readyForTime && this.showTime() && !this.timeOnly()) {
+      this.analogFace.set('hour');
+      this.panelView.set('time');
+    }
+  }
+
+  protected backToCalendar(): void {
+    this.panelView.set('date');
+  }
+
+  protected setAnalogFace(face: AnalogFace): void {
+    this.analogFace.set(face);
+  }
+
+  protected onAnalogPointerDown(event: PointerEvent): void {
+    if (this.$disabled()) {
+      return;
+    }
+    this.analogDragging = true;
+    (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+    this.applyAnalogPoint(event);
+  }
+
+  protected onAnalogPointerMove(event: PointerEvent): void {
+    if (!this.analogDragging || this.$disabled()) {
+      return;
+    }
+    this.applyAnalogPoint(event);
+  }
+
+  protected onAnalogPointerUp(event: PointerEvent): void {
+    if (!this.analogDragging) {
+      return;
+    }
+    this.analogDragging = false;
+    (event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
+    const face = this.analogFace();
+    if (face === 'hour') {
+      this.analogFace.set('minute');
+    } else if (face === 'minute' && this.showSeconds()) {
+      this.analogFace.set('second');
+    } else if (this.autoCommit()) {
+      this.maybeAutoCommitTime();
+    }
+  }
+
+  private applyAnalogPoint(event: MouseEvent | PointerEvent): void {
+    const svg = event.currentTarget as SVGSVGElement;
+    const rect = svg.getBoundingClientRect();
+    const x = event.clientX - rect.left - rect.width / 2;
+    const y = event.clientY - rect.top - rect.height / 2;
+    const dist = Math.sqrt(x * x + y * y);
+    let deg = (Math.atan2(y, x) * 180) / Math.PI + 90;
+    if (deg < 0) {
+      deg += 360;
+    }
+
+    const face = this.analogFace();
+    if (face === 'hour') {
+      if (this.hourFormat() === '24') {
+        const ring = dist > (rect.width / 2) * 0.55 ? 'outer' : 'inner';
+        const idx = Math.round(deg / 30) % 12;
+        // Inner 0–11, outer 12–23 (idx 0 on outer → 12)
+        const hour24 = ring === 'outer' ? (idx === 0 ? 12 : idx + 12) : idx;
+        this.pendingHour.set(hour24);
+        this.pendingPeriod.set(hour24 >= 12 ? 'pm' : 'am');
+      } else {
+        let h = Math.round(deg / 30) % 12;
+        if (h === 0) {
+          h = 12;
+        }
+        this.pendingHour.set(to24Hour(h, this.pendingPeriod()));
+      }
+    } else {
+      const value = Math.round(deg / 6) % 60;
+      if (face === 'minute') {
+        this.pendingMinute.set(value);
+      } else {
+        this.pendingSecond.set(value);
+      }
+    }
+    this.maybeAutoCommitTime();
   }
 
   protected confirm(): void {
+    this.commitFromPending(true);
+  }
+
+  private commitFromPending(hideAfter: boolean): void {
     if (!this.canConfirm() || this.$disabled()) {
       return;
+    }
+
+    if (this.timeOnly() && !this.pendingStart()) {
+      this.pendingStart.set(this.todayParts());
     }
 
     const start = this.pendingStart()!;
     let internal: Date | Date[];
 
-    if (this.isRange()) {
+    if (this.isRange() && !this.timeOnly()) {
       const end = this.pendingEnd()!;
       const [from, to] = normalizeJalaliRange(start, end);
-      internal = [toGregorianDate(from), toGregorianDate(to)];
+      internal = [
+        this.dateFromPartsWithPendingTime(from),
+        this.dateFromPartsWithPendingTime(to),
+      ];
       this.pendingStart.set(from);
       this.pendingEnd.set(to);
     } else {
-      internal = toGregorianDate(start);
+      internal = this.dateFromPartsWithPendingTime(start);
     }
 
     if (!this.isInternalWithinBounds(internal)) {
@@ -866,9 +1336,59 @@ export class JalaliDatePicker implements ControlValueAccessor {
 
     this.commitInternal(internal);
 
-    if (!this.inline()) {
+    if (hideAfter && !this.inline()) {
       this.hide();
     }
+  }
+
+  protected bumpHour(delta: number): void {
+    if (this.$disabled()) {
+      return;
+    }
+    if (this.hourFormat() === '12') {
+      const { hour, period } = to12Hour(this.pendingHour());
+      let next = hour + delta;
+      let nextPeriod = period;
+      if (next > 12) {
+        next = 1;
+      } else if (next < 1) {
+        next = 12;
+      }
+      if ((hour === 11 && delta === 1) || (hour === 12 && delta === -1)) {
+        nextPeriod = period === 'am' ? 'pm' : 'am';
+      }
+      this.pendingPeriod.set(nextPeriod);
+      this.pendingHour.set(to24Hour(next, nextPeriod));
+    } else {
+      this.pendingHour.set(wrapUnit(this.pendingHour() + delta, 0, 23));
+    }
+    this.maybeAutoCommitTime();
+  }
+
+  protected bumpMinute(delta: number): void {
+    if (this.$disabled()) {
+      return;
+    }
+    this.pendingMinute.set(wrapUnit(this.pendingMinute() + delta, 0, 59));
+    this.maybeAutoCommitTime();
+  }
+
+  protected bumpSecond(delta: number): void {
+    if (this.$disabled()) {
+      return;
+    }
+    this.pendingSecond.set(wrapUnit(this.pendingSecond() + delta, 0, 59));
+    this.maybeAutoCommitTime();
+  }
+
+  protected setPeriod(period: Meridiem): void {
+    if (this.$disabled()) {
+      return;
+    }
+    const { hour } = to12Hour(this.pendingHour());
+    this.pendingPeriod.set(period);
+    this.pendingHour.set(to24Hour(hour, period));
+    this.maybeAutoCommitTime();
   }
 
   protected cancel(): void {
@@ -1227,7 +1747,11 @@ export class JalaliDatePicker implements ControlValueAccessor {
   }
 
   onEscape(): void {
-    if (this.panelView() !== 'date') {
+    if (this.panelView() === 'time' && !this.timeOnly()) {
+      this.panelView.set('date');
+      return;
+    }
+    if (this.panelView() === 'month' || this.panelView() === 'year') {
       this.panelView.set(this.panelView() === 'year' ? 'month' : 'date');
       return;
     }
@@ -1319,32 +1843,96 @@ export class JalaliDatePicker implements ControlValueAccessor {
   }
 
   private parseInputText(text: string): Date | null {
-    if (this.inputCalendar() === 'gregorian' || this.calendar() === 'gregorian') {
-      return (
-        parseGregorianDateString(text) ??
-        (() => {
-          const parts = parseJalaliDateString(text);
-          return parts ? toGregorianDate(parts) : null;
-        })()
-      );
+    if (this.timeOnly()) {
+      const time = parseTimeFromText(text) ?? parseTimeFromText(splitDateTimeText(text).timePart ?? '');
+      if (!time) {
+        return null;
+      }
+      const base =
+        this.committedDates() instanceof Date
+          ? (this.committedDates() as Date)
+          : new Date();
+      return applyTimeToDate(base, time.hour, time.minute, this.showSeconds() ? time.second : 0);
     }
-    const parts = parseJalaliDateString(text);
-    return parts ? toGregorianDate(parts) : null;
+
+    const { datePart, timePart } = this.timeEnabled()
+      ? splitDateTimeText(text)
+      : { datePart: text, timePart: null };
+
+    let date: Date | null = null;
+    if (this.inputCalendar() === 'gregorian' || this.calendar() === 'gregorian') {
+      date =
+        parseGregorianDateString(datePart) ??
+        (() => {
+          const parts = parseJalaliDateString(datePart);
+          return parts ? toGregorianDate(parts) : null;
+        })();
+    } else {
+      const parts = parseJalaliDateString(datePart);
+      date = parts ? toGregorianDate(parts) : null;
+    }
+
+    if (!date) {
+      return null;
+    }
+
+    if (this.timeEnabled() && timePart) {
+      const time = parseTimeFromText(timePart);
+      if (!time) {
+        return null;
+      }
+      return applyTimeToDate(date, time.hour, time.minute, this.showSeconds() ? time.second : 0);
+    }
+
+    if (this.timeEnabled()) {
+      return this.applyPendingTime(date);
+    }
+
+    return date;
   }
 
   private formatDateForInput(date: Date): string {
+    const loc = this.t();
+    if (this.timeOnly()) {
+      return formatTimeDisplay(date.getHours(), date.getMinutes(), date.getSeconds(), {
+        hourFormat: this.hourFormat(),
+        showSeconds: this.showSeconds(),
+        digits: loc.digits,
+        am: loc.am,
+        pm: loc.pm,
+      });
+    }
+
     const format = this.resolveDisplayFormat();
+    let dateText: string;
     switch (format) {
       case 'jalali-long':
-        return formatJalaliDisplay(toJalaliParts(date), 'long');
+        dateText = formatJalaliDisplay(toJalaliParts(date), 'long');
+        break;
       case 'jalali-slash':
-        return formatJalaliSlash(toJalaliParts(date), 'persian');
+        dateText = formatJalaliSlash(toJalaliParts(date), 'persian');
+        break;
       case 'gregorian-slash':
-        return formatGregorianSlash(date, 'latin');
+        dateText = formatGregorianSlash(date, 'latin');
+        break;
       case 'jalali-short':
       default:
-        return formatJalaliDisplay(toJalaliParts(date), 'short');
+        dateText = formatJalaliDisplay(toJalaliParts(date), 'short');
+        break;
     }
+
+    if (!this.timeEnabled()) {
+      return dateText;
+    }
+
+    const timeText = formatTimeDisplay(date.getHours(), date.getMinutes(), date.getSeconds(), {
+      hourFormat: this.hourFormat(),
+      showSeconds: this.showSeconds(),
+      digits: loc.digits,
+      am: loc.am,
+      pm: loc.pm,
+    });
+    return `${dateText} ${timeText}`;
   }
 
   private formatDatePairForInput(start: Date, end: Date): string {
@@ -1374,11 +1962,12 @@ export class JalaliDatePicker implements ControlValueAccessor {
   private commitInternal(internal: Date | Date[] | null): void {
     let next = internal;
     if (Array.isArray(next) && next.length >= 2) {
-      const [fromParts, toParts] = normalizeJalaliRange(
-        toJalaliParts(next[0]),
-        toJalaliParts(next[1]),
-      );
-      next = [toGregorianDate(fromParts), toGregorianDate(toParts)];
+      // Preserve times when ordering the range by calendar day.
+      if (compareJalaliDay(toJalaliParts(next[0]), toJalaliParts(next[1])) <= 0) {
+        next = [next[0], next[1]];
+      } else {
+        next = [next[1], next[0]];
+      }
     }
 
     this.committedDates.set(next);
@@ -1417,10 +2006,12 @@ export class JalaliDatePicker implements ControlValueAccessor {
     }
 
     if (this.valueFormat() === 'jalali') {
+      const mapParts = (d: Date) =>
+        this.timeEnabled() ? toJalaliDateTimeParts(d) : toJalaliParts(d);
       if (Array.isArray(internal)) {
-        return internal.map((d) => toJalaliParts(d));
+        return internal.map(mapParts);
       }
-      return toJalaliParts(internal);
+      return mapParts(internal);
     }
 
     return internal;
@@ -1520,8 +2111,11 @@ export class JalaliDatePicker implements ControlValueAccessor {
       if (dates.length === 1) {
         return [dates[0]];
       }
-      const [from, to] = normalizeJalaliRange(toJalaliParts(dates[0]), toJalaliParts(dates[1]));
-      return [toGregorianDate(from), toGregorianDate(to)];
+      const [from, to] =
+        compareJalaliDay(toJalaliParts(dates[0]), toJalaliParts(dates[1])) <= 0
+          ? [dates[0], dates[1]]
+          : [dates[1], dates[0]];
+      return [from, to];
     }
 
     if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -1541,10 +2135,12 @@ export class JalaliDatePicker implements ControlValueAccessor {
         this.pendingEnd.set(value.length >= 2 ? toJalaliParts(value[1]) : null);
         this.viewParts.set(start);
         this.focusedParts.set(start);
+        this.syncPendingTimeFromDate(value[0]);
         return;
       }
       this.pendingStart.set(null);
       this.pendingEnd.set(null);
+      this.syncPendingTimeFromNow();
       return;
     }
 
@@ -1554,11 +2150,46 @@ export class JalaliDatePicker implements ControlValueAccessor {
       this.pendingEnd.set(null);
       this.viewParts.set(parts);
       this.focusedParts.set(parts);
+      this.syncPendingTimeFromDate(value);
       return;
     }
 
     this.pendingStart.set(null);
     this.pendingEnd.set(null);
+    this.syncPendingTimeFromNow();
+  }
+
+  private syncPendingTimeFromDate(date: Date): void {
+    this.pendingHour.set(date.getHours());
+    this.pendingMinute.set(date.getMinutes());
+    this.pendingSecond.set(date.getSeconds());
+    this.pendingPeriod.set(date.getHours() >= 12 ? 'pm' : 'am');
+  }
+
+  private syncPendingTimeFromNow(): void {
+    const now = new Date();
+    this.syncPendingTimeFromDate(now);
+  }
+
+  private dateFromPartsWithPendingTime(parts: JalaliDateParts): Date {
+    const date = toGregorianDate({ jy: parts.jy, jm: parts.jm, jd: parts.jd });
+    return this.timeEnabled() ? this.applyPendingTime(date) : date;
+  }
+
+  private applyPendingTime(date: Date): Date {
+    return applyTimeToDate(
+      date,
+      this.pendingHour(),
+      this.pendingMinute(),
+      this.showSeconds() ? this.pendingSecond() : 0,
+    );
+  }
+
+  private maybeAutoCommitTime(): void {
+    if (!this.autoCommit() || !this.timeEnabled() || !this.canConfirm() || this.$disabled()) {
+      return;
+    }
+    this.commitFromPending(false);
   }
 }
 
