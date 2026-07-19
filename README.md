@@ -210,61 +210,6 @@ Opens the demo app at `http://localhost:4400`.
 npm run build:showcase
 ```
 
-## CI / Publish
-
-- **CI** (`.github/workflows/ci.yml`) — on push/PR to `main`: install, test, build library, build showcase.
-- **Pages** (`.github/workflows/pages.yml`) — on push to `main`: build showcase and deploy to GitHub Pages.
-- **Publish** (`.github/workflows/publish.yml`) — on push to `main` when `package.json` changes: publishes to npm only if the version is new.
-
-Live demo: [Hkarimi561.github.io/datepicker-ng](https://Hkarimi561.github.io/datepicker-ng/)
-
-In the repo: **Settings → Pages → Source: GitHub Actions**.
-
-### Publish setup
-
-> **Note:** The unscoped name `datepicker-ng` is blocked by npm (too similar to `date-picker-ng`). This package publishes as `@hamidrezz/datepicker-ng`.
-
-#### 1. First publish (required once)
-
-Trusted Publishing cannot create a **new** package — the package must exist first. Do one of:
-
-**Option A — locally (simplest):**
-
-```bash
-npm login
-npm run build
-npm publish ./dist/datepicker-ng --access public
-```
-
-**Option B — CI with a granular token:**
-
-1. npm → [Access Tokens](https://www.npmjs.com/settings/~/tokens) → Granular Access Token
-2. Permissions: **Read and write**, packages: `@hamidrezz/datepicker-ng` (or your user scope)
-3. Enable **Bypass 2FA** (required or CI fails with `EOTP`)
-4. GitHub → Settings → Secrets and variables → Actions → **Repository secrets** → `NPM_TOKEN`
-5. Re-run the Publish workflow
-
-Secrets under **Environments** are ignored unless the job sets `environment: <name>`.
-
-#### 2. Trusted Publishing (optional, after the package exists)
-
-1. Open https://www.npmjs.com/package/@hamidrezz/datepicker-ng → **Settings** → **Trusted Publisher**
-2. Choose **GitHub Actions** and set:
-   - Organization or user: `Hkarimi561`
-   - Repository: `datepicker-ng`
-   - Workflow filename: `publish.yml`
-   - Environment name: leave **empty**
-   - Allowed actions: **npm publish**
-3. Later publishes can use OIDC; keep `NPM_TOKEN` as a fallback or remove it once Trusted Publishing works.
-
-To release: bump `"version"` in `package.json`, commit, and push to `main`. CI skips publish if that version already exists on npm.
-
-Publish from the built package locally:
-
-```bash
-npm run publish:lib
-```
-
 ## License
 
 MIT
